@@ -41,15 +41,23 @@ function plotInfo(x, y) {
   return { price, apy };
 }
 
+function tipShow(e, l1, l2) {
+  tip.innerHTML = '<b>' + l1 + '</b><i>' + l2 + '</i>';
+  tip.style.left = (e.clientX > window.innerWidth - 220 ? e.clientX - 210 : e.clientX + 16) + 'px';
+  tip.style.top = e.clientY - 44 + 'px';
+  tip.hidden = false;
+}
+
+function tipHide() {
+  tip.hidden = true;
+}
+
 function showTip(e, plot, info, owned) {
   const line1 = owned ? 'plot ' + plot + ' · owned' : 'plot ' + plot + ' · $' + info.price;
   const line2 = owned
     ? info.apy.toFixed(1) + '% apy · off the market'
     : info.apy.toFixed(1) + '% apy · pays ~$' + ((info.price * info.apy) / 100).toFixed(2) + '/yr';
-  tip.innerHTML = '<b>' + line1 + '</b><i>' + line2 + '</i>';
-  tip.style.left = (e.clientX > window.innerWidth - 220 ? e.clientX - 210 : e.clientX + 16) + 'px';
-  tip.style.top = e.clientY - 44 + 'px';
-  tip.hidden = false;
+  tipShow(e, line1, line2);
 }
 
 function isoX(v, x, y) {
@@ -351,6 +359,9 @@ if (fine) {
 
 gbuild();
 grender();
+
+// shared renderer pieces for chain.js (the live map)
+window.utopia = { prism, hash, tipShow, tipHide, IN, BG, TOPS, HOVER_TOP, CLAIMED_TOP, fine, reduced };
 
 // reveal text sections once they enter the viewport
 document.documentElement.classList.add('js');

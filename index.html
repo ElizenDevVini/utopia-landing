@@ -17,7 +17,10 @@
   <canvas id="field" aria-hidden="true"></canvas>
   <header class="top">
     <span class="wordmark">utopia</span>
-    <a href="#how">how it works</a>
+    <nav>
+      <a href="#how">how it works</a>
+      <a href="#live" id="wallet">connect wallet</a>
+    </nav>
   </header>
   <div class="hero-copy">
     <h1>Own land in a city that pays you.</h1>
@@ -59,32 +62,45 @@
   </section>
 
   <section id="chain" class="fade">
-    <h2>Built for Robinhood Chain</h2>
-    <p>utopia is built for <a href="https://newsroom.aboutrobinhood.com/" target="_blank" rel="noopener">Robinhood Chain</a>, Robinhood's Arbitrum-based network for tokenized stocks. The rails that put equities on chain are the rails that back the land. utopia deploys when the chain opens to builders.</p>
+    <h2>Built on Robinhood Chain</h2>
+    <p><a href="https://newsroom.aboutrobinhood.com/" target="_blank" rel="noopener">Robinhood Chain</a> is Robinhood's Arbitrum-based network for tokenized stocks. The rails that put equities on chain are the rails that back the land. It went live in 2026, and utopia runs on its testnet today: the grid below is real contract state.</p>
+  </section>
+
+  <section id="live" class="fade">
+    <h2>The land, live</h2>
+    <p>This is the real grid, read from Robinhood Chain's testnet. 1,024 plots on a
+    <a href="https://explorer.testnet.chain.robinhood.com/address/0x9087704c85912cb288abbd1a7a9661577d5e586f" target="_blank" rel="noopener">verified contract</a>.
+    Test ETH from the <a href="https://faucet.testnet.chain.robinhood.com" target="_blank" rel="noopener">faucet</a> buys one; the deed streams testnet stock tokens until you claim them.</p>
+    <div class="map-wrap">
+      <canvas id="land" aria-label="live plot map"></canvas>
+    </div>
+    <p class="map-status">reading the chain…</p>
+    <div id="panel" hidden></div>
   </section>
 
   <section id="faq" class="fade">
     <h2>Questions</h2>
     <dl>
       <dt>Is any of this live?</dt>
-      <dd>No. utopia is a concept. There is no token, no sale, and no yield today. The footer is not fine print, it is the truth.</dd>
-      <dt>What would back the yield?</dt>
-      <dd>Baskets of tokenized stocks held per district. A plot passes through what its basket earns. No leverage, no rehypothecation, no magic.</dd>
+      <dd>On testnet, yes. The grid above is read from Robinhood Chain's testnet. The plots, the deeds, and the yield are real contracts moving tokens that cost nothing and are worth nothing.</dd>
+      <dt>How do I try it?</dt>
+      <dd>Get test ETH and testnet stock tokens from the faucet, connect a browser wallet, click an empty plot, buy it. Come back later and claim what it streamed.</dd>
+      <dt>What backs the yield?</dt>
+      <dd>A treasury of testnet stock tokens held by the land contract, seeded from the faucet. Each plot streams one stock at a fixed fake rate. Finite, visible on the explorer, no magic.</dd>
       <dt>Why Robinhood Chain?</dt>
       <dd>Because that is where the tokenized stocks live. Building the land on the rails that hold the equities keeps the whole loop on one chain.</dd>
-      <dt>When?</dt>
-      <dd>When Robinhood Chain opens to builders. utopia is designed to deploy there first.</dd>
     </dl>
   </section>
 </main>
 
 <footer class="fade">
-  <p>utopia is a concept. Nothing here is live, for sale, or earning anything yet. No wallet, no token, no waitlist. An idea, drawn in blocks.</p>
+  <p>utopia runs on Robinhood Chain's testnet. The blocks are real; the money is not. Test ETH and testnet stock tokens have no value. Not an offer of anything.</p>
   <p class="fine">2026</p>
 </footer>
 
 <div id="tip" hidden></div>
 
 <script src="art.js"></script>
+<script type="module" src="chain.js"></script>
 </body>
 </html>
