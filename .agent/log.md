@@ -15,3 +15,16 @@
 - 2026-07-18: Added an undeployed V3 mainnet candidate: fixed UTOP land prices,
   adapter-based checkpointed reward multipliers, visible payout shortfalls, bounded
   batches, immutable Stock Token reserves, and two-step ownership. Focused tests 12/12 pass.
+- 2026-07-18: A concurrent session switched the default back to ETH-priced V1 and
+  committed the shared work as `322ea93`; preserved that product choice.
+- 2026-07-18: Re-read all five V1 token addresses and balances from chain ID 46630;
+  every reward balance is zero. The frontend now labels the reserve shortfall instead
+  of claiming that rewards are currently payable.
+- 2026-07-18: During browser verification, another session funded V1. A second live
+  read showed about 5 units of each Stock Token; the dashboard updated without a code
+  change, confirming that reserve health is derived from chain state rather than copy.
+- 2026-07-18: Chrome smoke passed for desktop/mobile landing, V1 dashboard, and the
+  disabled mainnet state. A CDP 390px check reported viewport/scroll widths both 390px;
+  keyboard Tab focus reached the visible mainnet control.
+- 2026-07-18: Final V1 live read: chain ID 46630, deployed bytecode present, plot 528
+  accrues token index 4, claimable about 0.0000000408 versus about 5 tokens reserved.

@@ -43,11 +43,12 @@ export const NETWORKS = {
     rpc: 'https://rpc.mainnet.chain.robinhood.com',
     explorer: 'https://robinhoodchain.blockscout.com',
     // filled in after the mainnet deploy (contracts/MAINNET.md)
+    // fill `land` after running contracts/MAINNET.md; ETH-priced like testnet
     land: '',
     utop: '',
     symbols: ['TSLA', 'AAPL', 'NVDA', 'MSFT', 'AMZN'],
-    landVersion: 3,
-    payment: 'utop',
+    landVersion: 1,
+    payment: 'native',
     utopFaucet: false,
     nativeFaucet: '',
   },

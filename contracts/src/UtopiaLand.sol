@@ -38,10 +38,7 @@ contract UtopiaLand is ERC721, Ownable {
     error NotPlotOwner();
     error NotMinted();
 
-    constructor(IERC20[5] memory tokens_, uint256[5] memory rates_)
-        ERC721("utopia land", "PLOT")
-        Ownable(msg.sender)
-    {
+    constructor(IERC20[5] memory tokens_, uint256[5] memory rates_) ERC721("utopia land", "PLOT") Ownable(msg.sender) {
         tokens = tokens_;
         tokensPerEthWad = rates_;
     }
@@ -106,7 +103,9 @@ contract UtopiaLand is ERC721, Ownable {
     }
 
     function claimMany(uint256[] calldata ids) external {
-        for (uint256 i = 0; i < ids.length; i++) claim(ids[i]);
+        for (uint256 i = 0; i < ids.length; i++) {
+            claim(ids[i]);
+        }
     }
 
     // ---- frontend hydration views ----

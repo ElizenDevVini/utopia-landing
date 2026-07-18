@@ -155,3 +155,9 @@
   .side { border-left: 0; border-top: 1px solid var(--rule); }
   .map-pane { min-height: 60svh; }
 }
+
+@media (max-width: 600px) {
+  .bar { flex-wrap: wrap; gap: 0.45rem 1rem; }
+  .bar .wordmark { margin-right: auto; }
+  .crumb { order: 3; flex-basis: 100%; }
+}

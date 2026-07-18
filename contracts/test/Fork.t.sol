@@ -40,8 +40,7 @@ contract ForkTest is Test {
     /// transfers them out to an EOA on claim.
     function test_contractCanHoldAndPayStockTokens() public {
         if (!_onFork()) return;
-        IERC20[5] memory toks =
-            [IERC20(TSLA), IERC20(AMD), IERC20(PLTR), IERC20(AMZN), IERC20(NFLX)];
+        IERC20[5] memory toks = [IERC20(TSLA), IERC20(AMD), IERC20(PLTR), IERC20(AMZN), IERC20(NFLX)];
         uint256[5] memory rates = [uint256(12e18), 25e18, 27e18, 18e18, 3e18];
         UtopiaLand land = new UtopiaLand(toks, rates);
 

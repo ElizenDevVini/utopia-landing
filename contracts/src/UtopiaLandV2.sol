@@ -7,10 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface IUniswapV3PoolMinimal {
-    function slot0()
-        external
-        view
-        returns (uint160 sqrtPriceX96, int24, uint16, uint16, uint16, uint8, bool);
+    function slot0() external view returns (uint160 sqrtPriceX96, int24, uint16, uint16, uint16, uint8, bool);
 }
 
 /// @title UtopiaLandV2
@@ -95,9 +92,8 @@ contract UtopiaLandV2 is ERC721, Ownable {
         (uint160 sqrtNow,,,,,,) = oracle.slot0();
         // price ratio = (sqrtNow / sqrtRef)^2; if UTOP is token1 the pool
         // price is the inverse, so flip the ratio
-        uint256 r = utopIsToken0
-            ? (uint256(sqrtNow) * 1e9) / refSqrtPriceX96
-            : (uint256(refSqrtPriceX96) * 1e9) / sqrtNow;
+        uint256 r =
+            utopIsToken0 ? (uint256(sqrtNow) * 1e9) / refSqrtPriceX96 : (uint256(refSqrtPriceX96) * 1e9) / sqrtNow;
         uint256 m = r * r;
         if (m < WAD) return WAD;
         if (m > MULT_CAP) return MULT_CAP;
@@ -146,7 +142,9 @@ contract UtopiaLandV2 is ERC721, Ownable {
     }
 
     function claimMany(uint256[] calldata ids) external {
-        for (uint256 i = 0; i < ids.length; i++) claim(ids[i]);
+        for (uint256 i = 0; i < ids.length; i++) {
+            claim(ids[i]);
+        }
     }
 
     // ---- frontend hydration views ----

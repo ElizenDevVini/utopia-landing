@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: utopia
+    runtime: static
+    buildCommand: ""
+    staticPublishPath: .
+    routes:
+      - type: rewrite
+        source: /dashboard
+        destination: /app.html

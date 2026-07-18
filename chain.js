@@ -69,10 +69,6 @@ function fmtPrice(wei) {
     : parseFloat(n.toFixed(2)) + ' UTOP';
 }
 
-function short(addr) {
-  return addr.slice(0, 6) + '…' + addr.slice(-4);
-}
-
 // ---- rendering ----
 
 function fit() {
@@ -253,14 +249,53 @@ new IntersectionObserver(entries => {
 
 window.addEventListener('resize', () => { fit(); schedule(); });
 
+function configureCopy() {
+  const liveCopy = document.getElementById('live-copy');
+  const faqTry = document.getElementById('faq-try');
+  const faqBacking = document.getElementById('faq-backing');
+  const contractLink = document.createElement('a');
+  contractLink.href = addressUrl(LAND) || '#';
+  contractLink.target = '_blank';
+  contractLink.rel = 'noopener';
+  contractLink.textContent = 'configured contract';
+  const dashboardLink = document.createElement('a');
+  dashboardLink.href = withNetwork('app.html');
+  dashboardLink.textContent = 'dashboard';
+
+  if (!NET.ready) {
+    liveCopy.textContent = 'The mainnet profile is intentionally disabled until UTOP, UtopiaLandV3, and a reviewed market-oracle adapter have verified deployment addresses.';
+    faqTry.textContent = 'Use the testnet profile today. Mainnet wallet actions stay disabled until the deployment gate is complete.';
+    faqBacking.textContent = 'Mainnet payouts require funded Stock Token reserves. UtopiaLandV3 has no owner rescue path for those reserves, but it is not deployed or audited yet.';
+    document.getElementById('chain-copy').append(' The mainnet Utopia deployment is still pending.');
+    return;
+  }
+
+  const profileText = NET.landVersion === 1
+    ? 'This grid reads the ETH-priced testnet prototype: 1,024 plots on the '
+    : 'This grid reads the funded UTOP-priced V2 testnet preview: 1,024 plots on the ';
+  const economicText = NET.landVersion === 1
+    ? ' Plots use test ETH. The dashboard checks all five reward reserves live and warns when claims can only accrue as unpaid debt. Open the '
+    : ' Plots use testnet UTOP. V2 scales both plot prices and reward rates with its test-only market multiplier. Open the ';
+  liveCopy.replaceChildren(
+    document.createTextNode(profileText),
+    contractLink,
+    document.createTextNode('.' + economicText),
+    dashboardLink,
+    document.createTextNode(' to inspect or interact.'),
+  );
+  faqTry.textContent = NET.payment === 'native'
+    ? 'Get test ETH for gas and plot payment, then open the dashboard and select an empty plot.'
+    : 'Get test ETH for gas and testnet UTOP from the dashboard faucet, then select an empty plot.';
+  faqBacking.textContent = 'Only Stock Tokens already held by the land contract can fund payouts. The dashboard reads those reserves live and reports any unpaid debt after a claim.';
+}
+
 fit();
 render();
+configureCopy();
 walletLink.href = withNetwork('app.html');
 walletLink.textContent = NET.ready ? 'open dashboard' : 'mainnet pending';
 document.querySelectorAll('a[href="app.html"]').forEach(link => { link.href = withNetwork('app.html'); });
 
-if (NET.ready) {
-  load();
-} else {
+if (!NET.ready) {
   statusEl.textContent = 'mainnet contracts and reviewed oracle are not deployed yet.';
 }
