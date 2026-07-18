@@ -32,6 +32,26 @@ function hash(x, y) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+// deterministic plot economics: summit plots (near grid origin, the diamond's
+// top vertex) command a premium
+function plotInfo(x, y) {
+  const near = Math.exp(-(x * x + y * y) / 1200);
+  const price = Math.round(((80 + hash(x + 101, y + 7) * 240) * (1 + 1.6 * near)) / 5) * 5;
+  const apy = 3.1 + hash(x, y) * 2.7;
+  return { price, apy };
+}
+
+function showTip(e, plot, info, owned) {
+  const line1 = owned ? 'plot ' + plot + ' · owned' : 'plot ' + plot + ' · $' + info.price;
+  const line2 = owned
+    ? info.apy.toFixed(1) + '% apy · off the market'
+    : info.apy.toFixed(1) + '% apy · pays ~$' + ((info.price * info.apy) / 100).toFixed(2) + '/yr';
+  tip.innerHTML = '<b>' + line1 + '</b><i>' + line2 + '</i>';
+  tip.style.left = (e.clientX > window.innerWidth - 220 ? e.clientX - 210 : e.clientX + 16) + 'px';
+  tip.style.top = e.clientY - 44 + 'px';
+  tip.hidden = false;
+}
+
 function isoX(v, x, y) {
   return v.ox + ((x - y) * v.tw) / 2;
 }
@@ -178,10 +198,7 @@ if (fine) {
       hover.gx = gx;
       hover.gy = gy;
       hover.on = true;
-      tip.textContent = 'plot ' + (gy * N + gx) + ' · ' + (3.1 + hash(gx, gy) * 2.7).toFixed(1) + '% apy';
-      tip.style.left = mx + 16 + 'px';
-      tip.style.top = my - 30 + 'px';
-      tip.hidden = false;
+      showTip(e, gy * N + gx, plotInfo(gx, gy), false);
     } else {
       hover.on = false;
       tip.hidden = true;
@@ -210,7 +227,7 @@ const gview = { w: 0, h: 0, tw: 0, th: 0, ox: 0, oy: 0 };
 
 let M = 0;
 let gcount = 0;
-let gxs, gys, gzT, grank, gclaim, gtint;
+let gxs, gys, gzT, grank, gclaim, gtint, gindex;
 
 function gbuild() {
   const wrap = growCanvas.parentElement;
@@ -235,6 +252,7 @@ function gbuild() {
   gclaim = new Uint8Array(gcount);
   gtint = new Uint8Array(gcount);
   grank = new Uint16Array(gcount);
+  gindex = new Uint16Array(gcount); // (y * M + x) -> tile index
 
   let i = 0;
   for (let s = 0; s <= 2 * M - 2; s++) {
@@ -246,6 +264,7 @@ function gbuild() {
       gzT[i] = tower ? 1.6 + hash(x + 3, y + 11) * 1.8 : 0.35 + hash(x + 7, y + 13) * 0.85;
       gclaim[i] = hash(x + 61, y + 5) < 0.3 ? 1 : 0;
       gtint[i] = (hash(x, y) * 997) % 3 | 0;
+      gindex[y * M + x] = i;
       i++;
     }
   }
@@ -268,6 +287,8 @@ function easeOutBack(q) {
   return 1 + c3 * u * u * u + c1 * u * u;
 }
 
+const ghover = { gx: -1, gy: -1, on: false };
+
 function grender() {
   gctx.fillStyle = BG;
   gctx.fillRect(0, 0, gview.w, gview.h);
@@ -281,6 +302,7 @@ function grender() {
       z = 0.08 + (gzT[i] - 0.08) * easeOutBack(q);
       if (gclaim[i] && q > 0.6) top = CLAIMED_TOP;
     }
+    if (ghover.on && gxs[i] === ghover.gx && gys[i] === ghover.gy) top = HOVER_TOP;
     prism(gctx, gview, gxs[i] + IN, gys[i] + IN, gxs[i] + 1 - IN, gys[i] + 1 - IN, z, top);
   }
 }
@@ -299,6 +321,33 @@ window.addEventListener('resize', () => {
   gbuild();
   gschedule();
 });
+
+if (fine) {
+  growCanvas.addEventListener('pointermove', e => {
+    const rect = growCanvas.getBoundingClientRect();
+    const a = (e.clientX - rect.left - gview.ox) / (gview.tw / 2);
+    const b = (e.clientY - rect.top - gview.oy + 0.5 * gview.th) / (gview.th / 2);
+    const gx = Math.floor((a + b) / 2);
+    const gy = Math.floor((b - a) / 2);
+    if (gx >= 0 && gx < M && gy >= 0 && gy < M) {
+      ghover.gx = gx;
+      ghover.gy = gy;
+      ghover.on = true;
+      const i = gindex[gy * M + gx];
+      const minted = growP() * (gcount + 40) - grank[i] > 18; // matches q > 0.6
+      showTip(e, gy * M + gx, plotInfo(gx, gy), minted && gclaim[i] === 1);
+    } else {
+      ghover.on = false;
+      tip.hidden = true;
+    }
+    gschedule();
+  });
+  growCanvas.addEventListener('pointerleave', () => {
+    ghover.on = false;
+    tip.hidden = true;
+    gschedule();
+  });
+}
 
 gbuild();
 grender();

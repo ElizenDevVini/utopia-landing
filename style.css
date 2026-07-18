@@ -94,16 +94,19 @@ a:hover { text-decoration-color: var(--ink); }
 }
 
 #tip {
-  position: absolute;
-  padding: 0.3rem 0.6rem;
+  position: fixed;
+  padding: 0.4rem 0.65rem;
   background: var(--bg);
   border: 1px solid var(--face);
   font-size: 0.8rem;
+  line-height: 1.45;
   color: var(--ink);
   white-space: nowrap;
   pointer-events: none;
   z-index: 2;
 }
+#tip b { display: block; font-weight: 500; }
+#tip i { font-style: normal; color: var(--muted); }
 
 /* sections */
 
