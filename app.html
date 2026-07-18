@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>utopia — dashboard</title>
+<meta name="description" content="Buy plots and claim yield on Robinhood Chain testnet.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c2340'/%3E%3Cpath d='M16 7 27 13.5 16 20 5 13.5Z' fill='%23e9f2fb'/%3E%3Cpath d='M5 13.5 16 20 16 26 5 19.5Z' fill='%234d84c3'/%3E%3Cpath d='M27 13.5 16 20 16 26 27 19.5Z' fill='%2333608f'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header class="bar">
+  <a class="wordmark" href="./">utopia</a>
+  <span class="crumb">dashboard · robinhood chain testnet</span>
+  <a href="#" id="wallet">connect wallet</a>
+</header>
+
+<main class="dash">
+  <div class="map-pane">
+    <canvas id="land" aria-label="live plot map"></canvas>
+    <p class="map-status">reading the chain…</p>
+    <p class="legend">flat, light: open · raised, blue: owned · raised, white: yours</p>
+  </div>
+
+  <aside class="side">
+    <section id="sel">
+      <h3>plot</h3>
+      <p class="quiet-note">click a plot on the map, or pick one from the market below.</p>
+    </section>
+
+    <section id="holdings">
+      <h3>your land</h3>
+      <div class="body"><p class="quiet-note">connect a wallet to see your plots and yield.</p></div>
+    </section>
+
+    <section id="market">
+      <h3>the market</h3>
+      <div class="body"><p class="quiet-note">reading…</p></div>
+    </section>
+  </aside>
+</main>
+
+<footer class="dash-foot">
+  <p>testnet only. test ETH and testnet stock tokens have no value. not an offer of anything.
+  <a href="https://explorer.testnet.chain.robinhood.com/address/0x9087704c85912cb288abbd1a7a9661577d5e586f" target="_blank" rel="noopener">contract</a> ·
+  <a href="https://faucet.testnet.chain.robinhood.com" target="_blank" rel="noopener">faucet</a></p>
+</footer>
+
+<div id="tip" hidden></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

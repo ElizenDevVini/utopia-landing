@@ -1,0 +1,137 @@
+/* dashboard layout; base tokens come from style.css */
+
+.bar {
+  display: flex;
+  align-items: baseline;
+  gap: 1.4rem;
+  padding: 1.2rem clamp(1.2rem, 3vw, 2.4rem);
+  border-bottom: 1px solid var(--rule);
+}
+
+.bar .wordmark {
+  font-size: 1.3rem;
+  text-decoration: none;
+}
+
+.crumb {
+  color: var(--muted);
+  font-size: 0.85rem;
+  flex: 1;
+}
+
+.bar #wallet {
+  font-size: 0.9rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+.bar #wallet:hover { color: var(--ink); }
+
+.dash {
+  display: grid;
+  grid-template-columns: 1fr minmax(300px, 360px);
+  gap: 0;
+  min-height: calc(100svh - 8.4rem);
+}
+
+.map-pane {
+  position: relative;
+  padding: 1.6rem;
+  display: flex;
+  flex-direction: column;
+}
+
+#land {
+  width: 100%;
+  flex: 1;
+  min-height: 320px;
+  cursor: pointer;
+}
+
+.map-pane .map-status { margin-top: 0.6rem; }
+
+.legend {
+  color: var(--muted);
+  font-size: 0.78rem;
+  margin-top: 0.2rem;
+  opacity: 0.8;
+}
+
+.side {
+  border-left: 1px solid var(--rule);
+  padding: 0.4rem 1.4rem 1.4rem;
+}
+
+.side section {
+  max-width: none;
+  margin: 0;
+  padding: 1.2rem 0 1.4rem;
+  border-top: 0;
+  border-bottom: 1px solid var(--rule);
+}
+.side section:last-child { border-bottom: 0; }
+
+.side h3 {
+  font-family: 'Instrument Serif', serif;
+  font-weight: 400;
+  font-size: 1.25rem;
+  margin-bottom: 0.7rem;
+}
+
+.side p { font-size: 0.92rem; }
+.quiet-note { color: var(--muted); }
+
+.side .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  font-size: 0.92rem;
+  padding: 0.28rem 0;
+}
+.side .row .k { color: var(--muted); }
+.side .row .v { text-align: right; }
+
+.side button {
+  margin-top: 0.8rem;
+  padding: 0.45rem 1rem;
+  font: 500 0.92rem 'Archivo', sans-serif;
+  color: var(--bg);
+  background: var(--ink);
+  border: 0;
+  cursor: pointer;
+}
+.side button:disabled { opacity: 0.5; cursor: default; }
+.side button:hover:not(:disabled) { background: #ffffff; }
+
+.txstate { font-size: 0.85rem; min-height: 1.2em; color: var(--muted); }
+
+.plotlink {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--face);
+  cursor: pointer;
+}
+
+.holdlist { list-style: none; }
+.holdlist li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.3rem 0;
+  font-size: 0.92rem;
+}
+.holdlist .amt { color: var(--muted); }
+
+.dash-foot {
+  max-width: none;
+  margin: 0;
+  border-top: 1px solid var(--rule);
+  padding: 1rem clamp(1.2rem, 3vw, 2.4rem);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 900px) {
+  .dash { grid-template-columns: 1fr; }
+  .side { border-left: 0; border-top: 1px solid var(--rule); }
+  .map-pane { min-height: 60svh; }
+}
