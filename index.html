@@ -69,9 +69,10 @@
   <section id="live" class="fade">
     <h2>The land, live</h2>
     <p>This is the real grid, read from Robinhood Chain's testnet. 1,024 plots on a
-    <a href="https://explorer.testnet.chain.robinhood.com/address/0x9087704c85912cb288abbd1a7a9661577d5e586f" target="_blank" rel="noopener">verified contract</a>.
-    Test ETH from the <a href="https://faucet.testnet.chain.robinhood.com" target="_blank" rel="noopener">faucet</a> buys one; the deed streams testnet stock tokens until you claim them.
-    For the full view — your land, yield, the market — open the <a href="app.html">dashboard</a>.</p>
+    <a href="https://explorer.testnet.chain.robinhood.com/address/0x6ceB22129eB8EBf3Ad1F9828F5c585Fa3A390cFd" target="_blank" rel="noopener">verified contract</a>,
+    priced in UTOP, the city's token. Deeds stream testnet stock tokens until you claim them,
+    and as UTOP's market grows, prices and yield scale with it.
+    To buy — and for your land, yield, and the market — open the <a href="app.html">dashboard</a>.</p>
     <div class="map-wrap">
       <canvas id="land" aria-label="live plot map"></canvas>
     </div>
@@ -85,9 +86,9 @@
       <dt>Is any of this live?</dt>
       <dd>On testnet, yes. The grid above is read from Robinhood Chain's testnet. The plots, the deeds, and the yield are real contracts moving tokens that cost nothing and are worth nothing.</dd>
       <dt>How do I try it?</dt>
-      <dd>Get test ETH and testnet stock tokens from the faucet, connect a browser wallet, click an empty plot, buy it. Come back later and claim what it streamed.</dd>
+      <dd>Get test ETH for gas from the chain faucet, then 1,000 UTOP from the button on the dashboard. Click an empty plot, buy it, come back later and claim what it streamed.</dd>
       <dt>What backs the yield?</dt>
-      <dd>A treasury of testnet stock tokens held by the land contract, seeded from the faucet. Each plot streams one stock at a fixed fake rate. Finite, visible on the explorer, no magic.</dd>
+      <dd>A treasury of testnet stock tokens held by the land contract. Each plot streams one stock at a fixed base rate, scaled by the UTOP market multiplier: when the token's market grows, every deed streams more. Finite, visible on the explorer, no magic.</dd>
       <dt>Why Robinhood Chain?</dt>
       <dd>Because that is where the tokenized stocks live. Building the land on the rails that hold the equities keeps the whole loop on one chain.</dd>
     </dl>

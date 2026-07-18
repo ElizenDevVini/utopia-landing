@@ -4,14 +4,15 @@
 // vendored tree-shaken viem 2.21.19 bundle; the site itself has no build step
 import {
   createPublicClient, createWalletClient, custom, http,
-  defineChain, parseAbi, formatEther,
+  defineChain, parseAbi,
 } from './vendor/viem.js';
 
-const LAND = '0x9087704c85912cb288abbd1a7a9661577d5e586f';
+const LAND = '0x6ceB22129eB8EBf3Ad1F9828F5c585Fa3A390cFd';
 const EXPLORER = 'https://explorer.testnet.chain.robinhood.com';
 const SIDE = 32;
 const PLOTS = 1024;
 const SYMBOLS = ['TSLA', 'AMD', 'PLTR', 'AMZN', 'NFLX'];
+const WAD = 10n ** 18n;
 
 const chain = defineChain({
   id: 46630,
@@ -23,9 +24,7 @@ const chain = defineChain({
 });
 
 const abi = parseAbi([
-  'function buy(uint256 id) payable',
-  'function claim(uint256 id)',
-  'function claimable(uint256 id) view returns (uint256)',
+  'function multiplierWad() view returns (uint256)',
   'function ownershipBitmap() view returns (uint256[4])',
   'function plotsOf(address) view returns (uint256[4])',
   'function plotsPacked() view returns (uint256[1024])',
@@ -44,12 +43,13 @@ const walletLink = document.getElementById('wallet');
 const view = { w: 0, h: 0, tw: 30, th: 15, ox: 0, oy: 0 };
 
 // chain state
-let prices = null; // BigUint64 doesn't fit; keep bigint arrays
+let prices = null; // base prices, bigint UTOP wei
 let apys = null; // Uint16Array
 let tokIdx = null; // Uint8Array
 let owned = new Uint8Array(PLOTS);
 let mine = new Uint8Array(PLOTS);
 let ownedCount = 0;
+let multiplier = WAD;
 let loaded = false;
 let account = null;
 let selected = -1;
@@ -57,14 +57,12 @@ let hoverId = -1;
 
 const MINE_TOP = '#ffffff';
 
-function fmtEth(wei) {
-  return parseFloat(parseFloat(formatEther(wei)).toFixed(5)) + ' ETH';
+function priceNow(id) {
+  return (prices[id] * multiplier) / WAD;
 }
 
-function fmtTok(wei, idx) {
-  const n = Number(wei) / 1e18;
-  const s = n === 0 ? '0' : n < 1e-6 ? n.toExponential(2) : parseFloat(n.toFixed(8)).toString();
-  return s + ' ' + SYMBOLS[idx];
+function fmtUtop(wei) {
+  return parseFloat((Number(wei) / 1e18).toFixed(2)) + ' UTOP';
 }
 
 function short(addr) {
@@ -141,7 +139,11 @@ function unpackBits(words, out) {
 }
 
 async function refreshOwnership() {
-  const bm = await pub.readContract({ address: LAND, abi, functionName: 'ownershipBitmap' });
+  const [bm, mult] = await Promise.all([
+    pub.readContract({ address: LAND, abi, functionName: 'ownershipBitmap' }),
+    pub.readContract({ address: LAND, abi, functionName: 'multiplierWad' }),
+  ]);
+  multiplier = mult;
   ownedCount = unpackBits(bm, owned);
   if (account) {
     const my = await pub.readContract({ address: LAND, abi, functionName: 'plotsOf', args: [account] });
@@ -207,71 +209,22 @@ function setPanel(html) {
   panel.hidden = false;
 }
 
+// the landing map is read-only; buying and claiming live on the dashboard
 function panelFor(id) {
   const name = 'plot ' + id;
   const apy = (apys[id] / 100).toFixed(2) + '% apy';
   const grows = 'grows ' + SYMBOLS[tokIdx[id]];
   if (!owned[id]) {
-    setPanel('<b>' + name + ' · ' + fmtEth(prices[id]) + '</b><p>' + apy + ' · ' + grows +
-      '</p><button id="act" data-act="buy">' + (account ? 'buy this plot' : 'connect wallet to buy') + '</button>' +
-      '<p class="txstate"></p>');
+    setPanel('<b>' + name + ' · ' + fmtUtop(priceNow(id)) + '</b><p>' + apy + ' · ' + grows +
+      '</p><p><a href="app.html">buy it on the dashboard</a></p>');
   } else if (mine[id]) {
     setPanel('<b>' + name + ' · yours</b><p>' + apy + ' · ' + grows +
-      '</p><p class="claimline">claimable: …</p><button id="act" data-act="claim">claim yield</button>' +
-      '<p class="txstate"></p>');
-    pollClaimable(id);
+      '</p><p><a href="app.html">claim yield on the dashboard</a></p>');
   } else {
     setPanel('<b>' + name + ' · owned</b><p>' + apy + ' · ' + grows + '</p><p><a href="' + EXPLORER +
       '/token/' + LAND + '/instance/' + id + '" target="_blank" rel="noopener">deed on the explorer</a></p>');
   }
 }
-
-let claimTimer = 0;
-function pollClaimable(id) {
-  clearInterval(claimTimer);
-  const tick = async () => {
-    try {
-      const c = await pub.readContract({ address: LAND, abi, functionName: 'claimable', args: [BigInt(id)] });
-      const el = panel.querySelector('.claimline');
-      if (el) el.textContent = 'claimable: ' + fmtTok(c, tokIdx[id]);
-    } catch {}
-  };
-  tick();
-  claimTimer = setInterval(tick, 5000);
-}
-
-function txState(msg) {
-  const el = panel.querySelector('.txstate');
-  if (el) el.innerHTML = msg;
-}
-
-async function doTx(id, act) {
-  const btn = panel.querySelector('#act');
-  try {
-    const wallet = await connect();
-    if (!wallet) return;
-    if (act === 'buy' && owned[id]) { panelFor(id); return; }
-    if (btn) btn.disabled = true;
-    txState('confirm in your wallet…');
-    const hash = act === 'buy'
-      ? await wallet.writeContract({ address: LAND, abi, functionName: 'buy', args: [BigInt(id)], value: prices[id], account })
-      : await wallet.writeContract({ address: LAND, abi, functionName: 'claim', args: [BigInt(id)], account });
-    txState('pending · <a href="' + EXPLORER + '/tx/' + hash + '" target="_blank" rel="noopener">' + short(hash) + '</a>');
-    await pub.waitForTransactionReceipt({ hash });
-    await refreshOwnership();
-    panelFor(id);
-    txState(act === 'buy' ? 'yours. the block just rose.' : 'claimed. check your wallet.');
-  } catch (err) {
-    if (btn) btn.disabled = false;
-    const m = (err?.shortMessage || err?.message || 'failed').split('\n')[0];
-    txState(/rejected|denied/i.test(m) ? 'cancelled.' : m.toLowerCase());
-  }
-}
-
-panel.addEventListener('click', e => {
-  const btn = e.target.closest('#act');
-  if (btn && selected >= 0) doTx(selected, btn.dataset.act);
-});
 
 function pick(e) {
   const rect = canvas.getBoundingClientRect();
@@ -288,7 +241,7 @@ canvas.addEventListener('click', e => {
   const id = pick(e);
   selected = id;
   if (id >= 0) panelFor(id);
-  else { panel.hidden = true; clearInterval(claimTimer); }
+  else panel.hidden = true;
   schedule();
 });
 
@@ -298,7 +251,7 @@ if (U.fine) {
     const id = pick(e);
     hoverId = id;
     if (id >= 0) {
-      const l1 = 'plot ' + id + (owned[id] ? (mine[id] ? ' · yours' : ' · owned') : ' · ' + fmtEth(prices[id]));
+      const l1 = 'plot ' + id + (owned[id] ? (mine[id] ? ' · yours' : ' · owned') : ' · ' + fmtUtop(priceNow(id)));
       const l2 = (apys[id] / 100).toFixed(2) + '% apy · grows ' + SYMBOLS[tokIdx[id]];
       U.tipShow(e, l1, l2);
     } else U.tipHide();
@@ -327,3 +280,4 @@ window.addEventListener('resize', () => { fit(); schedule(); });
 
 fit();
 render();
+load();
