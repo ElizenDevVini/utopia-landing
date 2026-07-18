@@ -46,6 +46,8 @@ const abi = parseAbi([
   'function plotsOf(address) view returns (uint256[4])',
   'function plotsPacked() view returns (uint256[1024])',
   'function tokens(uint256) view returns (address)',
+  'function tokensPerEthWad(uint256) view returns (uint256)',
+  'function tokensPerUtopWad(uint256) view returns (uint256)',
 ]);
 
 const erc20Abi = parseAbi([
@@ -87,6 +89,8 @@ let walletClient = null;
 let selected = -1;
 let hoverId = -1;
 let claimables = new Map();
+let cityClaims = new Map(); // accrued rewards for every owned plot, anyone's
+let rates = null; // stock-wei streamed per payment-wei of price per year
 let paymentBalance = null;
 let treasuryBalances = null;
 
@@ -113,6 +117,12 @@ function short(addr) {
 
 function fmtMult() {
   return (Number(multiplier) / 1e18).toFixed(2) + 'x';
+}
+
+// stock-wei a plot streams per year at current rates
+function perYear(id) {
+  if (!rates) return null;
+  return (basePrices[id] * BigInt(apys[id]) * rates[tokIdx[id]] * multiplier) / (10000n * WAD * WAD);
 }
 
 // ---- rendering ----
@@ -255,11 +265,32 @@ async function refreshClaimables() {
   if (selected >= 0 && mine[selected]) renderSel();
 }
 
+// accrual across the whole city, so anyone can see the land earning
+async function refreshCityClaims() {
+  if (!NET.ready) return;
+  const ids = [];
+  for (let i = 0; i < PLOTS; i++) if (owned[i]) ids.push(i);
+  const vals = await Promise.all(ids.map(id =>
+    pub.readContract({ address: LAND, abi, functionName: 'claimable', args: [BigInt(id)] }).catch(() => null)
+  ));
+  cityClaims = new Map(ids.map((id, i) => [id, vals[i]]));
+  if (selected >= 0 && owned[selected]) renderSel();
+}
+
+async function loadRates() {
+  const getter = NET.landVersion === 1 ? 'tokensPerEthWad' : 'tokensPerUtopWad';
+  rates = await Promise.all(Array.from({ length: 5 }, (_, i) =>
+    pub.readContract({ address: LAND, abi, functionName: getter, args: [BigInt(i)] })
+  ));
+}
+
 async function load() {
   if (!NET.ready) return;
   try {
     if (!basePrices) await loadStatic();
+    if (!rates) await loadRates().catch(() => {});
     await Promise.all([refreshOwnership(), refreshTreasury()]);
+    await refreshCityClaims(); // needs the ownership bitmap populated first
     loaded = true;
   } catch (e) {
     statusEl.textContent = 'the chain is not answering right now. retrying shortly.';
@@ -298,7 +329,7 @@ async function ensureWalletChain(wallet) {
 
 async function connect({ prompt = true } = {}) {
   if (!NET.ready) {
-    selEl.innerHTML = '<h3>mainnet pending</h3><p class="quiet-note">the mainnet contracts and reviewed oracle are not deployed yet. the funded testnet remains available.</p>';
+    selEl.innerHTML = '<h3>coming soon</h3><p class="quiet-note">this network opens shortly. the live city is one click back.</p>';
     return null;
   }
   if (!window.ethereum) {
@@ -369,22 +400,31 @@ function renderSel() {
     return;
   }
   const id = selected;
+  const yr = perYear(id);
+  const streams = yr != null
+    ? '<div class="row"><span class="k">streams</span><span class="v">' + fmtTok(yr, tokIdx[id]) + ' / year</span></div>'
+    : '';
   const rows =
     '<div class="row"><span class="k">price</span><span class="v">' + fmtPrice(priceNow(id)) + '</span></div>' +
     '<div class="row"><span class="k">base reward rate</span><span class="v">' + (apys[id] / 100).toFixed(2) + '%</span></div>' +
-    '<div class="row"><span class="k">reward token</span><span class="v">' + SYMBOLS[tokIdx[id]] + '</span></div>';
+    '<div class="row"><span class="k">reward token</span><span class="v">' + SYMBOLS[tokIdx[id]] + '</span></div>' +
+    streams;
   if (!owned[id]) {
     selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + '</h3>' + rows +
       '<button id="act" data-act="buy">' + (account ? 'buy for ' + fmtPrice(priceNow(id)) : 'connect wallet to buy') + '</button>' +
       '<p class="txstate"></p>';
   } else if (mine[id]) {
-    const c = claimables.get(id);
+    const c = claimables.get(id) ?? cityClaims.get(id);
     selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · yours</h3>' + rows +
       '<div class="row"><span class="k">claimable</span><span class="v">' + (c != null ? fmtTok(c, tokIdx[id]) : '…') + '</span></div>' +
       '<button id="act" data-act="claim">claim rewards</button>' +
       '<p class="txstate"></p>';
   } else {
-    selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · owned</h3>' + rows +
+    const c = cityClaims.get(id);
+    const accrued = c != null
+      ? '<div class="row"><span class="k">accrued</span><span class="v">' + fmtTok(c, tokIdx[id]) + '</span></div>'
+      : '';
+    selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · owned</h3>' + rows + accrued +
       '<p><a href="' + EXPLORER + '/token/' + LAND + '/instance/' + id + '" target="_blank" rel="noopener">deed on the explorer</a></p>';
   }
 }
@@ -597,6 +637,7 @@ function renderMarket() {
     '<div class="row"><span class="k">multiplier</span><span class="v">' + fmtMult() + '</span></div>';
   marketEl.innerHTML =
     '<div class="row"><span class="k">open plots</span><span class="v">' + (PLOTS - ownedCount) + '</span></div>' +
+    '<div class="row"><span class="k">streaming now</span><span class="v">' + ownedCount + ' plots</span></div>' +
     '<div class="row"><span class="k">cheapest</span><span class="v"><button class="plotlink" data-id="' + cheapest + '">plot ' + cheapest + '</button> · ' + fmtPrice(priceNow(cheapest)) + '</span></div>' +
     '<div class="row"><span class="k">highest base rate</span><span class="v"><button class="plotlink" data-id="' + bestApy + '">plot ' + bestApy + '</button> · ' + (apys[bestApy] / 100).toFixed(2) + '%</span></div>' +
     multiplierRow + reserves + '<p class="quiet-note">' + marketNote + '</p>';
@@ -637,7 +678,10 @@ if (fine) {
     hoverId = id;
     if (id >= 0) {
       const l1 = 'plot ' + id + (owned[id] ? (mine[id] ? ' · yours' : ' · owned') : ' · ' + fmtPrice(priceNow(id)));
-      const l2 = (apys[id] / 100).toFixed(2) + '% base rate · rewards in ' + SYMBOLS[tokIdx[id]];
+      const acc = owned[id] ? (cityClaims.get(id) ?? claimables.get(id)) : null;
+      const l2 = acc != null
+        ? 'earning · ' + fmtTok(acc, tokIdx[id]) + ' accrued'
+        : (apys[id] / 100).toFixed(2) + '% base rate · rewards in ' + SYMBOLS[tokIdx[id]];
       tip.show(e, l1, l2);
     } else tip.hide();
     schedule();
@@ -653,6 +697,7 @@ if (fine) {
 
 setInterval(() => { if (loaded && !document.hidden) refreshOwnership().catch(() => {}); }, 15000);
 setInterval(() => { if (loaded && !document.hidden && account) refreshClaimables().catch(() => {}); }, 10000);
+setInterval(() => { if (loaded && !document.hidden) refreshCityClaims().catch(() => {}); }, 10000);
 setInterval(() => { if (loaded && !document.hidden) refreshTreasury().catch(() => {}); }, 60000);
 
 window.addEventListener('resize', () => { fit(); schedule(); });
@@ -663,7 +708,7 @@ function configurePage() {
 
   const disclaimer = document.getElementById('network-disclaimer');
   disclaimer.textContent = NET.key === 'mainnet'
-    ? 'mainnet preview only. contracts and reviewed oracle are not deployed.'
+    ? 'this network opens shortly.'
     : 'testnet only. test ETH and testnet Stock Tokens have no value. not an offer of anything.';
 
   const links = [
@@ -678,8 +723,8 @@ function configurePage() {
   }
 
   if (!NET.ready) {
-    walletLink.textContent = 'mainnet pending';
-    holdingsEl.innerHTML = '<p class="quiet-note">mainnet contracts are not deployed yet.</p>';
+    walletLink.textContent = 'coming soon';
+    holdingsEl.innerHTML = '<p class="quiet-note">this network opens shortly.</p>';
     marketEl.innerHTML = '<p class="quiet-note">mainnet deployment and reviewed oracle pending.</p>';
   }
 }
@@ -691,5 +736,5 @@ if (NET.ready) {
   load();
   connect({ prompt: false }).catch(() => {});
 } else {
-  statusEl.textContent = 'utopia is not deployed on ' + NET.label + ' yet. the testnet city is live.';
+  statusEl.textContent = NET.label + ' opens shortly. the live city is one click back.';
 }

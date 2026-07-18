@@ -28,3 +28,11 @@
   keyboard Tab focus reached the visible mainnet control.
 - 2026-07-18: Final V1 live read: chain ID 46630, deployed bytecode present, plot 528
   accrues token index 4, claimable about 0.0000000408 versus about 5 tokens reserved.
+- 2026-07-18: User requested the proven buy -> claimed plot -> dashboard rewards ->
+  wallet Stock Token loop on Robinhood mainnet. Replaced the testnet-oriented done
+  criteria with production activation gates: verified chain-4663 deployments,
+  bounded/pre-funded rewards, eligible distribution, production RPC, multisig,
+  receipt-safe UI, and a fresh-wallet mainnet trace.
+- 2026-07-18: Re-audited `/Users/ash/utopia-launchpad`. UTOP creation and auction
+  work is fork-only; no token exists on mainnet from this repository. Its recorded
+  release status remains NO-GO on audit/source-verification/dependency gates.

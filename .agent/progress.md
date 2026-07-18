@@ -18,13 +18,23 @@
 - Passed Chrome smoke checks on the landing and dashboard at desktop/mobile sizes,
   including the disabled mainnet profile. CDP at a true 390px viewport showed no
   horizontal overflow and keyboard focus reached the visible mainnet control.
+- Reframed the launch contract around the requested real mainnet outcome. A live
+  production claim now requires verified deployments, reserve solvency, compliant
+  Stock Token distribution, and a fresh-wallet chain-4663 transaction trace.
+- Audited the UTOP launchpad state: its launch lifecycle passes on a pinned mainnet
+  fork, but no UTOP deployment was broadcast and its own production gates remain.
 
 ## Next
 
-- Monitor default V1 reserve coverage and expose aggregate liabilities before launch.
-- Add production RPC/indexing configuration and complete launchpad release gates.
+- Harden the land contract around a finite, fully reserved reward program and an
+  explicit eligibility gate; add invariants for both.
+- Finish wallet Stock Token portfolio visibility and fail-closed receipt handling.
+- Add a machine-readable mainnet preflight and an operator deployment/funding runbook.
 
 ## Blocked
 
-- Mainnet launch remains a no-go in `utopia-launchpad` pending its recorded audit
-  mapping and source-verification gates.
+- Activation is blocked until the operator supplies/approves a production RPC,
+  multisig owner, compliance/eligibility authority, reward duration/rates, and
+  exact canonical Stock Token reserve funding.
+- The current UTOP launchpad records a NO-GO pending Launcher v3 audit mapping,
+  three source-verification gaps, and dependency isolation/remediation.

@@ -2,23 +2,32 @@
 
 ## Mission
 
-Make onchain finance feel like a living city: land is the understandable asset,
-UTOP is the city currency, and each deed visibly accrues a Robinhood Chain Stock
-Token from a transparent treasury. The testnet product must prove this loop
-honestly before any mainnet or market-linked claims.
+Launch the proven Utopia land loop on Robinhood Chain mainnet without turning a
+testnet demo into an unfunded or misleading production claim. A wallet holder
+buys land with ETH, sees the plot become claimed after a successful receipt,
+sees the deed and accrued rewards in the dashboard, and can claim canonical
+Robinhood Stock Tokens that appear in the same wallet.
 
 ## Done
 
-- One documented V3 mainnet candidate defines UTOP supply, land pricing, rewards,
-  treasury solvency, transfers, market/oracle behavior, and admin powers.
-- Landing copy, dashboard labels, deployed addresses, and contract behavior agree.
-- Connect -> faucet -> approve -> buy -> accrue -> claim is verified end to end;
-  transaction success reports the amount actually paid and any remaining debt.
-- Treasury/oracle/network health is visible and failure states are actionable.
-- Contract invariants cover solvency, ownership, accrual, oracle bounds, and batch
-  behavior; the frontend has automated desktop/mobile, wallet, and accessibility
-  smoke tests.
-- Production traffic does not depend on Robinhood's rate-limited public RPC.
+- The mainnet land contract is source-verified on chain 4663, uses canonical
+  Robinhood Stock Token addresses, and has an operator-approved multisig owner.
+- Rewards are time-bounded and pre-funded (or otherwise provably solvent); the
+  contract cannot sell a reward-bearing plot without sufficient token reserves.
+- Production uses an eligibility/compliance gate appropriate for transfers of
+  tokenized securities and does not offer Stock Tokens to prohibited users.
+- The production profile fails closed until chain ID, bytecode, owner, payment,
+  Stock Token addresses, reward deadline, reserve coverage, and RPC are verified.
+- Connect -> buy -> successful receipt -> white claimed plot -> deed
+  in Your Land -> accrue -> claim -> wallet Stock Token balance is verified end
+  to end on Robinhood Chain mainnet with a fresh eligible wallet.
+- Landing copy, dashboard balances, explorer links, deployed addresses, and
+  contract behavior agree; failures never display a successful purchase/claim.
+- Contract invariants cover reserve commitments, ownership, accrual deadline,
+  eligibility, transfers, and batches. Frontend checks cover desktop, 390px,
+  wallet/network errors, receipt failures, and keyboard use.
+- Production traffic uses an operator-supplied production RPC, not Robinhood's
+  rate-limited public endpoint.
 
 ## Constraints
 
@@ -26,15 +35,23 @@ honestly before any mainnet or market-linked claims.
 - Keep testnet assets and forward-looking mainnet economics unmistakably distinct.
 - Do not deploy or move tokens without explicit operator authorization.
 - Preserve concurrent user edits and the current untracked V2 work.
-- Mainnet-candidate plot prices remain fixed in UTOP; checkpointed market growth
-  applies only to future Stock Token reward intervals through an oracle adapter.
-- Mainnet stays disabled until UTOP, land, and a reviewed v4-compatible oracle
-  have verified deployment addresses.
+- The first mainnet release mirrors the proven ETH purchase path. A later UTOP
+  migration is separate from launchpad work and must not silently change pricing.
+- Market-linked reward scaling is excluded from the first mainnet release unless
+  its oracle and maximum liability are reviewed and fully covered; a fixed rate
+  is safer than an unbounded promise.
+- Mainnet stays disabled until the launch inputs, production RPC, compliance
+  decision, verified deployments, and funded reserves are all recorded.
+- Never ask for, print, or commit a private key. Deployment and funding remain
+  wallet/operator-signed release actions with explicit addresses and amounts.
 
 ## Verification
 
 - `cd contracts && forge fmt --check && forge test`
 - `node --check art.js && node --check chain.js && node --check app.js && node --check iso.js`
 - Automated browser smoke at 390px and 1440px, including keyboard-only use.
-- Read-only live-chain smoke for configured chain ID, bytecode, ownership,
-  multiplier/oracle, UTOP balance, treasury balances, and claimable/payout state.
+- Read-only mainnet preflight for chain ID, bytecode, source verification, owner,
+  Stock Token identity, deadline, reserve commitments, wallet balances, and
+  claimable/payout state.
+- Operator-signed fresh-wallet mainnet smoke with recorded transaction hashes is
+  required before the production profile can be marked ready.
