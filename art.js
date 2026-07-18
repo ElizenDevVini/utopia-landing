@@ -32,32 +32,32 @@ function hash(x, y) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-function isoX(x, y) {
-  return view.ox + ((x - y) * view.tw) / 2;
+function isoX(v, x, y) {
+  return v.ox + ((x - y) * v.tw) / 2;
 }
-function isoY(x, y, z) {
-  return view.oy + ((x + y) * view.th) / 2 - z * view.th;
+function isoY(v, x, y, z) {
+  return v.oy + ((x + y) * v.th) / 2 - z * v.th;
 }
 
 // extruded block: two shaded side faces dropping to Z0, flat top
-function prism(x0, y0, x1, y1, z, top) {
-  const ax = isoX(x0, y0), ay = isoY(x0, y0, z);
-  const bx = isoX(x1, y0), by = isoY(x1, y0, z);
-  const cx = isoX(x1, y1), cy = isoY(x1, y1, z);
-  const dx = isoX(x0, y1), dy = isoY(x0, y1, z);
-  const drop = (z - Z0) * view.th;
-  ctx.fillStyle = FACE_L;
-  ctx.beginPath();
-  ctx.moveTo(dx, dy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + drop); ctx.lineTo(dx, dy + drop);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = FACE_R;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy); ctx.lineTo(bx, by); ctx.lineTo(bx, by + drop); ctx.lineTo(cx, cy + drop);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = top;
-  ctx.beginPath();
-  ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.lineTo(cx, cy); ctx.lineTo(dx, dy);
-  ctx.closePath(); ctx.fill();
+function prism(c2, v, x0, y0, x1, y1, z, top) {
+  const ax = isoX(v, x0, y0), ay = isoY(v, x0, y0, z);
+  const bx = isoX(v, x1, y0), by = isoY(v, x1, y0, z);
+  const cx = isoX(v, x1, y1), cy = isoY(v, x1, y1, z);
+  const dx = isoX(v, x0, y1), dy = isoY(v, x0, y1, z);
+  const drop = (z - Z0) * v.th;
+  c2.fillStyle = FACE_L;
+  c2.beginPath();
+  c2.moveTo(dx, dy); c2.lineTo(cx, cy); c2.lineTo(cx, cy + drop); c2.lineTo(dx, dy + drop);
+  c2.closePath(); c2.fill();
+  c2.fillStyle = FACE_R;
+  c2.beginPath();
+  c2.moveTo(cx, cy); c2.lineTo(bx, by); c2.lineTo(bx, by + drop); c2.lineTo(cx, cy + drop);
+  c2.closePath(); c2.fill();
+  c2.fillStyle = top;
+  c2.beginPath();
+  c2.moveTo(ax, ay); c2.lineTo(bx, by); c2.lineTo(cx, cy); c2.lineTo(dx, dy);
+  c2.closePath(); c2.fill();
 }
 
 function build() {
@@ -130,7 +130,7 @@ function frame(now) {
     }
     if (z < ZMIN) z = ZMIN;
     const isHover = hover.on && x === hover.gx && y === hover.gy;
-    prism(x + IN, y + IN, x + 1 - IN, y + 1 - IN, z, isHover ? HOVER_TOP : TOPS[tint[i]]);
+    prism(ctx, view, x + IN, y + IN, x + 1 - IN, y + 1 - IN, z, isHover ? HOVER_TOP : TOPS[tint[i]]);
   }
 }
 
@@ -197,3 +197,125 @@ if (fine) {
 
 build();
 if (reduced) once(); else start();
+
+// the district: a sticky scene where scroll mints deeds into a skyline.
+// height is a pure function of scroll progress, so it only redraws on scroll.
+
+const CLAIMED_TOP = '#4d84c3';
+
+const growSec = document.getElementById('build');
+const growCanvas = document.getElementById('grow');
+const gctx = growCanvas.getContext('2d');
+const gview = { w: 0, h: 0, tw: 0, th: 0, ox: 0, oy: 0 };
+
+let M = 0;
+let gcount = 0;
+let gxs, gys, gzT, grank, gclaim, gtint;
+
+function gbuild() {
+  const wrap = growCanvas.parentElement;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  gview.w = w; gview.h = h;
+  const dpr = Math.min(window.devicePixelRatio || 1, w < 700 ? 1.5 : 2);
+  growCanvas.width = Math.round(w * dpr);
+  growCanvas.height = Math.round(h * dpr);
+  gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const tw = Math.max(24, Math.min(40, w / 36));
+  gview.tw = tw;
+  gview.th = tw / 2;
+  M = Math.max(16, Math.min(26, Math.round((w * 0.82) / tw)));
+  gview.ox = w / 2;
+  gview.oy = h * 0.3;
+
+  gcount = M * M;
+  gxs = new Int16Array(gcount);
+  gys = new Int16Array(gcount);
+  gzT = new Float32Array(gcount);
+  gclaim = new Uint8Array(gcount);
+  gtint = new Uint8Array(gcount);
+  grank = new Uint16Array(gcount);
+
+  let i = 0;
+  for (let s = 0; s <= 2 * M - 2; s++) {
+    for (let x = Math.max(0, s - M + 1); x <= Math.min(M - 1, s); x++) {
+      const y = s - x;
+      gxs[i] = x;
+      gys[i] = y;
+      const tower = hash(x + 29, y + 43) > 0.9;
+      gzT[i] = tower ? 1.6 + hash(x + 3, y + 11) * 1.8 : 0.35 + hash(x + 7, y + 13) * 0.85;
+      gclaim[i] = hash(x + 61, y + 5) < 0.3 ? 1 : 0;
+      gtint[i] = (hash(x, y) * 997) % 3 | 0;
+      i++;
+    }
+  }
+  // mint order: a deterministic shuffle so the district fills in scattered
+  const ord = Array.from({ length: gcount }, (_, k) => k);
+  ord.sort((a, b) => hash(gxs[a] + 53, gys[a] + 91) - hash(gxs[b] + 53, gys[b] + 91));
+  for (let k = 0; k < gcount; k++) grank[ord[k]] = k;
+}
+
+function growP() {
+  const r = growSec.getBoundingClientRect();
+  const total = r.height - window.innerHeight;
+  if (total <= 0) return 1;
+  return Math.min(1, Math.max(0, -r.top / total));
+}
+
+function easeOutBack(q) {
+  const c1 = 1.70158, c3 = c1 + 1;
+  const u = q - 1;
+  return 1 + c3 * u * u * u + c1 * u * u;
+}
+
+function grender() {
+  gctx.fillStyle = BG;
+  gctx.fillRect(0, 0, gview.w, gview.h);
+  const reveal = growP() * (gcount + 40);
+  for (let i = 0; i < gcount; i++) {
+    const k = reveal - grank[i];
+    let z = 0.08; // unminted plots sit as paving slabs
+    let top = TOPS[gtint[i]];
+    if (k > 0) {
+      const q = k >= 30 ? 1 : k / 30;
+      z = 0.08 + (gzT[i] - 0.08) * easeOutBack(q);
+      if (gclaim[i] && q > 0.6) top = CLAIMED_TOP;
+    }
+    prism(gctx, gview, gxs[i] + IN, gys[i] + IN, gxs[i] + 1 - IN, gys[i] + 1 - IN, z, top);
+  }
+}
+
+let graf = 0;
+function gschedule() {
+  if (!graf) graf = requestAnimationFrame(() => { graf = 0; grender(); });
+}
+
+window.addEventListener('scroll', () => {
+  const r = growSec.getBoundingClientRect();
+  if (r.top < window.innerHeight && r.bottom > 0) gschedule();
+}, { passive: true });
+
+window.addEventListener('resize', () => {
+  gbuild();
+  gschedule();
+});
+
+gbuild();
+grender();
+
+// reveal text sections once they enter the viewport
+document.documentElement.classList.add('js');
+const fades = document.querySelectorAll('.fade');
+if (reduced) {
+  fades.forEach(el => el.classList.add('in'));
+} else {
+  const io = new IntersectionObserver(entries => {
+    for (const e of entries) {
+      if (e.isIntersecting) {
+        e.target.classList.add('in');
+        io.unobserve(e.target);
+      }
+    }
+  }, { threshold: 0.15 });
+  fades.forEach(el => io.observe(el));
+}

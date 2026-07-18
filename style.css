@@ -141,6 +141,78 @@ h2 {
 
 .steps p { color: var(--muted); }
 
+/* scroll-built district */
+
+#build {
+  max-width: none;
+  padding: 0;
+  border-top: 0;
+  height: 260vh;
+  position: relative;
+}
+
+.pin {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  overflow: hidden;
+}
+
+#grow {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.caption {
+  position: absolute;
+  left: clamp(1.4rem, 7vw, 6.5rem);
+  top: 11svh;
+  max-width: 24rem;
+  pointer-events: none;
+}
+
+.caption strong {
+  display: block;
+  font: 400 1.7rem/1.25 'Instrument Serif', serif;
+  margin-bottom: 0.5rem;
+}
+
+.caption span {
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+/* questions */
+
+#faq dt {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.35rem;
+  margin-top: 2.2rem;
+}
+#faq dt:first-child { margin-top: 0; }
+
+#faq dd {
+  color: var(--muted);
+  max-width: 38rem;
+  margin-top: 0.4rem;
+}
+
+/* section reveal, enabled only when art.js runs */
+
+@media (prefers-reduced-motion: no-preference) {
+  .js .fade {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .js .fade.in {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 #chain p {
   color: var(--muted);
   max-width: 38rem;
