@@ -19,12 +19,15 @@
   flex: 1;
 }
 
-.bar #wallet {
+.bar #wallet,
+.bar .xlink {
   font-size: 0.9rem;
   color: var(--muted);
   text-decoration: none;
 }
-.bar #wallet:hover { color: var(--ink); }
+.bar .xlink { margin-right: 1.4rem; }
+.bar #wallet:hover,
+.bar .xlink:hover { color: var(--ink); }
 
 .dash {
   display: grid;
