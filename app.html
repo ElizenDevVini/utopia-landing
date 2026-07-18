@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>utopia — dashboard</title>
-<meta name="description" content="Buy plots and claim yield on Robinhood Chain testnet.">
+<meta name="description" content="Explore Utopia plots and claim testnet Stock Token rewards on Robinhood Chain.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c2340'/%3E%3Cpath d='M16 7 27 13.5 16 20 5 13.5Z' fill='%23e9f2fb'/%3E%3Cpath d='M5 13.5 16 20 16 26 5 19.5Z' fill='%234d84c3'/%3E%3Cpath d='M27 13.5 16 20 16 26 27 19.5Z' fill='%2333608f'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -35,7 +35,7 @@
 
     <section id="holdings">
       <h3>your land</h3>
-      <div class="body"><p class="quiet-note">connect a wallet to see your plots and yield.</p></div>
+      <div class="body"><p class="quiet-note">connect a wallet to see your plots and rewards.</p></div>
     </section>
 
     <section id="market">
@@ -46,10 +46,10 @@
 </main>
 
 <footer class="dash-foot">
-  <p>testnet only. UTOP, test ETH and testnet stock tokens have no value. not an offer of anything.
-  <a href="https://explorer.testnet.chain.robinhood.com/address/0x6ceB22129eB8EBf3Ad1F9828F5c585Fa3A390cFd" target="_blank" rel="noopener">land contract</a> ·
-  <a href="https://explorer.testnet.chain.robinhood.com/address/0xB0Ff1Be3dd5b04F285e82a502Fcc30D216Bd4977" target="_blank" rel="noopener">UTOP</a> ·
-  <a href="https://faucet.testnet.chain.robinhood.com" target="_blank" rel="noopener">eth faucet</a></p>
+  <p><span id="network-disclaimer">testnet only.</span>
+  <span class="deployment-links"><a id="land-contract-link" target="_blank" rel="noopener">land contract</a>
+  <a id="utop-contract-link" target="_blank" rel="noopener">UTOP</a>
+  <a id="chain-faucet-link" target="_blank" rel="noopener">eth faucet</a></span></p>
 </footer>
 
 <div id="tip" hidden></div>

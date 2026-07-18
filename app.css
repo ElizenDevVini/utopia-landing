@@ -102,6 +102,18 @@
 .side button:disabled { opacity: 0.5; cursor: default; }
 .side button:hover:not(:disabled) { background: #ffffff; }
 
+.side button.plotlink {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  color: var(--ink);
+  background: transparent;
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--face);
+}
+.side button.plotlink:hover:not(:disabled) { background: transparent; }
+
 .txstate { font-size: 0.85rem; min-height: 1.2em; color: var(--muted); }
 
 .plotlink {
@@ -109,6 +121,12 @@
   text-decoration: underline;
   text-decoration-color: var(--face);
   cursor: pointer;
+}
+
+.reserve-warning {
+  color: #8f2f21;
+  border-left: 2px solid #b54835;
+  padding-left: 0.65rem;
 }
 
 .holdlist { list-style: none; }
@@ -129,6 +147,8 @@
   color: var(--muted);
   font-size: 0.82rem;
 }
+
+.deployment-links a:not([hidden]) + a:not([hidden])::before { content: " · "; }
 
 @media (max-width: 900px) {
   .dash { grid-template-columns: 1fr; }

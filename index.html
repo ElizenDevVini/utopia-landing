@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>utopia — own land in a city that pays you</title>
-<meta name="description" content="utopia is a digital city sold block by block. Every block you own earns yield backed by tokenized stocks. Built for Robinhood Chain.">
+<title>utopia — an onchain city, block by block</title>
+<meta name="description" content="Utopia is a digital city of onchain deeds designed to accrue transparent Stock Token rewards on Robinhood Chain.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c2340'/%3E%3Cpath d='M16 7 27 13.5 16 20 5 13.5Z' fill='%23e9f2fb'/%3E%3Cpath d='M5 13.5 16 20 16 26 5 19.5Z' fill='%234d84c3'/%3E%3Cpath d='M27 13.5 16 20 16 26 27 19.5Z' fill='%2333608f'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -23,8 +23,8 @@
     </nav>
   </header>
   <div class="hero-copy">
-    <h1>Own land in a city that pays you.</h1>
-    <p>utopia is a digital city, sold block by block. Every block you own earns yield backed by tokenized stocks. Built for Robinhood Chain.</p>
+    <h1>Own land in a living onchain city.</h1>
+    <p id="hero-description">utopia is a digital city, sold block by block. Each deed is designed to accrue Stock Token rewards from a transparent onchain treasury. Mainnet is not live.</p>
     <a class="quiet" href="#how">how it works</a>
   </div>
 </section>
@@ -40,13 +40,13 @@
       </li>
       <li>
         <span class="num" aria-hidden="true">2</span>
-        <h3>The land works</h3>
-        <p>Each plot is backed by a basket of tokenized stocks. When the basket earns, the land earns.</p>
+        <h3>The treasury streams rewards</h3>
+        <p>Each plot accrues one Stock Token at a disclosed base rate. Payouts depend on the visible reward reserves.</p>
       </li>
       <li>
         <span class="num" aria-hidden="true">3</span>
-        <h3>Yield stays with the deed</h3>
-        <p>Hold the block and collect the APY. Sell it, and the yield goes with it.</p>
+        <h3>Rewards stay with the deed</h3>
+        <p>Unclaimed rewards follow the plot when the deed transfers. The displayed rate is a reference streaming rate, not investment APY.</p>
       </li>
     </ol>
   </section>
@@ -63,16 +63,12 @@
 
   <section id="chain" class="fade">
     <h2>Built on Robinhood Chain</h2>
-    <p><a href="https://newsroom.aboutrobinhood.com/" target="_blank" rel="noopener">Robinhood Chain</a> is Robinhood's Arbitrum-based network for tokenized stocks. The rails that put equities on chain are the rails that back the land. It went live in 2026, and utopia runs on its testnet today: the grid below is real contract state.</p>
+    <p id="chain-copy"><a href="https://docs.robinhood.com/crypto/robinhood-chain/overview" target="_blank" rel="noopener">Robinhood Chain</a> is Robinhood's network for tokenized assets. Utopia's current prototype reads real contract state from its testnet.</p>
   </section>
 
   <section id="live" class="fade">
     <h2>The land, live</h2>
-    <p>This is the real grid, read from Robinhood Chain's testnet. 1,024 plots on a
-    <a href="https://explorer.testnet.chain.robinhood.com/address/0x6ceB22129eB8EBf3Ad1F9828F5c585Fa3A390cFd" target="_blank" rel="noopener">verified contract</a>,
-    priced in UTOP, the city's token. Deeds stream testnet stock tokens until you claim them,
-    and as UTOP's market grows, prices and yield scale with it.
-    To buy — and for your land, yield, and the market — open the <a href="app.html">dashboard</a>.</p>
+    <p id="live-copy">Reading the configured Utopia testnet deployment…</p>
     <div class="map-wrap">
       <canvas id="land" aria-label="live plot map"></canvas>
     </div>
@@ -84,11 +80,11 @@
     <h2>Questions</h2>
     <dl>
       <dt>Is any of this live?</dt>
-      <dd>On testnet, yes. The grid above is read from Robinhood Chain's testnet. The plots, the deeds, and the yield are real contracts moving tokens that cost nothing and are worth nothing.</dd>
+      <dd id="faq-live">On testnet, yes. The grid above is real contract state. Test assets cost nothing and have no value; mainnet is not deployed.</dd>
       <dt>How do I try it?</dt>
-      <dd>Get test ETH for gas from the chain faucet, then 1,000 UTOP from the button on the dashboard. Click an empty plot, buy it, come back later and claim what it streamed.</dd>
+      <dd id="faq-try">Get test ETH for gas, open the dashboard, and select an empty plot. The dashboard shows the configured payment asset and live reward-reserve status.</dd>
       <dt>What backs the yield?</dt>
-      <dd>A treasury of testnet stock tokens held by the land contract. Each plot streams one stock at a fixed base rate, scaled by the UTOP market multiplier: when the token's market grows, every deed streams more. Finite, visible on the explorer, no magic.</dd>
+      <dd id="faq-backing">Only Stock Tokens already held by the land contract can fund payouts. The dashboard exposes those finite reserves and reports any unpaid debt after a claim.</dd>
       <dt>Why Robinhood Chain?</dt>
       <dd>Because that is where the tokenized stocks live. Building the land on the rails that hold the equities keeps the whole loop on one chain.</dd>
     </dl>
@@ -96,7 +92,7 @@
 </main>
 
 <footer class="fade">
-  <p>utopia runs on Robinhood Chain's testnet. The blocks are real; the money is not. Test ETH and testnet stock tokens have no value. Not an offer of anything.</p>
+  <p id="footer-copy">utopia runs on Robinhood Chain's testnet. Test ETH and testnet Stock Tokens have no value. Mainnet is not deployed. Not an offer of anything.</p>
   <p class="fine">2026</p>
 </footer>
 

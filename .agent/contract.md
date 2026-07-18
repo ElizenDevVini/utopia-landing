@@ -9,7 +9,7 @@ honestly before any mainnet or market-linked claims.
 
 ## Done
 
-- One documented V2 economic model defines UTOP supply, land pricing, yield,
+- One documented V3 mainnet candidate defines UTOP supply, land pricing, rewards,
   treasury solvency, transfers, market/oracle behavior, and admin powers.
 - Landing copy, dashboard labels, deployed addresses, and contract behavior agree.
 - Connect -> faucet -> approve -> buy -> accrue -> claim is verified end to end;
@@ -26,6 +26,10 @@ honestly before any mainnet or market-linked claims.
 - Keep testnet assets and forward-looking mainnet economics unmistakably distinct.
 - Do not deploy or move tokens without explicit operator authorization.
 - Preserve concurrent user edits and the current untracked V2 work.
+- Mainnet-candidate plot prices remain fixed in UTOP; checkpointed market growth
+  applies only to future Stock Token reward intervals through an oracle adapter.
+- Mainnet stays disabled until UTOP, land, and a reviewed v4-compatible oracle
+  have verified deployment addresses.
 
 ## Verification
 
