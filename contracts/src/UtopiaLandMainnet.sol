@@ -259,7 +259,7 @@ contract UtopiaLandMainnet is ERC721, Ownable2Step, ReentrancyGuard {
         from = super._update(to, tokenId, auth);
 
         uint256 word = tokenId >> 8;
-        uint256 mask = 1 << (tokenId & 255);
+        uint256 mask = uint256(1) << (tokenId & 255);
         if (from == address(0)) _ownershipBits[word] |= mask;
         else _ownerBits[from][word] &= ~mask;
         if (to == address(0)) _ownershipBits[word] &= ~mask;

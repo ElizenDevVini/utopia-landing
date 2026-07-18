@@ -1,66 +1,22 @@
-## Foundry
+# Utopia contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+The repository keeps three generations separate:
 
-Foundry consists of:
+- `UtopiaLand.sol`: live ETH-priced testnet prototype. Rewards can become debt.
+- `UtopiaLandV2.sol` / `UtopiaLandV3.sol`: testnet and undeployed market-linked
+  experiments. Neither is the production contract.
+- `UtopiaLandMainnet.sol`: finite ETH-priced release candidate. A plot cannot be
+  sold unless its full remaining reward is reserved, committed Stock Tokens
+  cannot be withdrawn, and purchases/transfers/claims require eligibility.
+- `UtopiaEligibility.sol`: expiry-based registry owned by the compliance Safe.
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+Run the local verification:
 
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+```sh
+forge fmt --check
+forge test
 ```
 
-### Test
-
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+Mainnet is a gated operator release, not a normal development deploy. Read
+[`MAINNET.md`](MAINNET.md) end to end. `DeployMainnet.s.sol` has no fallback
+owner, deadline, or rates and does not enroll users or transfer Stock Tokens.

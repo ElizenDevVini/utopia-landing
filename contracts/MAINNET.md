@@ -1,95 +1,126 @@
-# mainnet runbook
+# mainnet release runbook
 
-Going live on Robinhood Chain mainnet (chain id 4663). Every command here is
-run by the operator, with the operator's keys and money. Nothing in this file
-is automated on purpose: deploying spends real ETH and the reward treasury is
-real tokenized securities.
+This runbook activates the proven ETH -> land -> Stock Token reward loop on
+Robinhood Chain mainnet (chain ID 4663). The repository is production-prepared,
+but it is not deployed or live until every release gate below passes.
 
-## read this first
+## hard gates
 
-- The reward mechanic streams real Robinhood Stock Tokens to any wallet that
-  buys a plot. Stock Tokens are tokenized debt securities offered under a
-  prospectus, not available to US persons. Redistributing them as rewards is
-  a securities-law question, not a code question. Get legal advice before
-  pointing real users at this.
-- The contract is unaudited. It is small and tested (54 tests, fork tests
-  against the live chain), but unaudited is unaudited.
-- Reward rates are fixed at deploy (no oracle). If stock or ETH prices move,
-  the streamed amounts stay frozen at the deploy-time snapshot. Edit the
-  rates in `script/DeployMainnet.s.sol` right before deploying.
-- The treasury only pays what it holds. Reserves are visible on the dashboard
-  and shortfalls accrue as debt (`owed`) rather than disappearing — but the
-  operator is the only one refilling it. Budget accordingly: at ~4.5% average
-  base rate, every 1 ETH of sold land streams ~0.045 ETH-equivalent of stock
-  per year.
-- Never use a key that has been pasted into a chat, a ticket, or a screen
-  share. Generate fresh, keep it in an encrypted keystore.
+- Obtain an independent security review of `UtopiaLandMainnet.sol` and
+  `UtopiaEligibility.sol`. Existing tests are evidence, not an audit.
+- Approve the exact reward rates, end timestamp, reserve budget, and deployed
+  Safe/multisig address. Rates are immutable and have no source-code defaults.
+- Implement the offchain eligibility process and have counsel approve the flow.
+  Robinhood Stock Tokens are tokenized debt securities and are restricted in a
+  number of jurisdictions, including for US persons. The onchain registry only
+  records an eligibility decision; it does not perform KYC.
+- Use a paid production RPC. Robinhood's public endpoint is rate-limited and is
+  explicitly refused by the release preflight.
 
-## 1. operator key
+Relevant primary documentation:
 
-```sh
-cast wallet new                          # note the address, keep the key off disk
-cast wallet import utopia-mainnet --interactive   # paste key, choose a strong password
-```
+- <https://docs.robinhood.com/chain/stock-tokens/>
+- <https://docs.robinhood.com/chain/contracts/>
+- <https://docs.robinhood.com/chain/connecting/>
+- <https://docs.robinhood.com/chain/terms-of-service/>
 
-Fund the address with ETH on Robinhood Chain mainnet (bridge per
-https://docs.robinhood.com/chain/bridging). Deploy gas is small (~0.0005 ETH
-at typical L2 prices); the real budget is the treasury.
+## 1. configure and simulate
 
-## 2. deploy + verify
-
-Recheck the rates in `script/DeployMainnet.s.sol` (comments explain the
-formula), then:
+Never put a private key in an environment variable, repository, chat, or command
+history. Use a Foundry encrypted keystore and a fresh deployment account.
 
 ```sh
 cd contracts
-forge test                                # must be green
-forge script script/DeployMainnet.s.sol:DeployMainnet \
-  --rpc-url https://rpc.mainnet.chain.robinhood.com \
-  --account utopia-mainnet --broadcast
+export ROBINHOOD_RPC_URL='https://your-production-provider.example'
+export UTOPIA_OWNER='0xYourDeployedSafe'
+export UTOPIA_REWARD_END='1798761600'
+export UTOPIA_TSLA_PER_ETH_WAD='operator-approved-value'
+export UTOPIA_AAPL_PER_ETH_WAD='operator-approved-value'
+export UTOPIA_NVDA_PER_ETH_WAD='operator-approved-value'
+export UTOPIA_MSFT_PER_ETH_WAD='operator-approved-value'
+export UTOPIA_AMZN_PER_ETH_WAD='operator-approved-value'
 
-forge verify-contract <DEPLOYED_ADDRESS> src/UtopiaLand.sol:UtopiaLand \
-  --verifier blockscout \
-  --verifier-url https://robinhoodchain.blockscout.com/api \
-  --chain-id 4663 \
-  --constructor-args $(cast abi-encode 'constructor(address[5],uint256[5])' \
-    '[0x322F0929c4625eD5bAd873c95208D54E1c003b2d,0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9,0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC,0xe93237C50D904957Cf27E7B1133b510C669c2e74,0x12f190a9F9d7D37a250758b26824B97CE941bF54]' \
-    '[9000000000000000000,15000000000000000000,22000000000000000000,8000000000000000000,17000000000000000000]')
+forge fmt --check
+forge test
+forge script script/DeployMainnet.s.sol:DeployMainnet \
+  --rpc-url "$ROBINHOOD_RPC_URL" --account utopia-mainnet
 ```
 
-If you edited the rates, mirror the change in the abi-encode args.
+The simulation must show chain 4663, the expected Safe, and the approved end
+timestamp. The script validates the five canonical token contracts, symbols, and
+18-decimal interface before deployment.
 
-## 3. seed the reward treasury
+## 2. operator-signed deploy and verification
 
-You need real TSLA/AAPL/NVDA/MSFT/AMZN Stock Tokens in the operator wallet.
-They trade permissionlessly on the chain's DEXes (Uniswap is live on
-mainnet), but whether you may hold and redistribute them is jurisdiction-
-dependent — see "read this first".
+After review of the simulation, the operator may run the same command with
+`--broadcast --verify`:
 
 ```sh
-# per token: transfer whatever reserve you decided on
-cast send <TOKEN> 'transfer(address,uint256)' <LAND_ADDRESS> <AMOUNT_WEI> \
-  --rpc-url https://rpc.mainnet.chain.robinhood.com --account utopia-mainnet
+forge script script/DeployMainnet.s.sol:DeployMainnet \
+  --rpc-url "$ROBINHOOD_RPC_URL" \
+  --account utopia-mainnet \
+  --broadcast --verify \
+  --verifier blockscout \
+  --verifier-url https://robinhoodchain.blockscout.com/api
 ```
 
-The dashboard's "reward reserves" row reads these balances live; an empty
-reserve shows users exactly what they'd get: nothing, carried as debt.
+Record the eligibility and land addresses plus deployment transaction hashes.
+Ownership is assigned directly to `UTOPIA_OWNER`; there is no deployer-owner
+handoff window.
 
-## 4. point the site at mainnet
+## 3. fund the finite reward program
 
-In `config.js`, fill the mainnet profile's `land` address. The mainnet
-profile is already wired for native-ETH pricing. Then either keep testnet as
-the default and share `app.html?net=mainnet`, or flip the default network.
-Redeploy the static site.
+The contract will reject an individual plot sale unless that plot's entire
+remaining reward obligation is available and uncommitted. For a public launch,
+fund enough to cover every open plot:
 
-## 5. smoke test with pocket change
+```sh
+cast call "$UTOPIA_LAND_ADDRESS" \
+  'reserveRequiredForAllOpenPlots()(uint256[5])' \
+  --rpc-url "$ROBINHOOD_RPC_URL"
+```
 
-From a second wallet: connect on the dashboard, buy the cheapest plot, wait
-ten minutes, claim, confirm the stock token lands. Only then tell anyone
-about it.
+Acquire and transfer exactly the counsel- and treasury-approved canonical Stock
+Token amounts. This runbook intentionally does not automate acquisition or token
+movement. Committed rewards cannot be withdrawn; only surplus above all sold-plot
+commitments is withdrawable.
 
-## ongoing
+## 4. enroll the smoke wallet
 
-- Watch reserves (dashboard, or `cast call <TOKEN> 'balanceOf(address)' <LAND>`).
-- Sale proceeds accumulate in the contract; `withdrawEth(to)` is onlyOwner.
-- `rescueTokens` can rebalance or wind down the treasury at any time.
+After the offchain eligibility decision, the compliance Safe records an expiry:
+
+```sh
+cast calldata 'setEligibility(address,uint64)' 0xEligibleSmokeWallet 1798761600
+```
+
+Submit that calldata to the Safe targeting `UTOPIA_ELIGIBILITY_REGISTRY`. Do not
+use a deployer EOA as the compliance authority.
+
+## 5. fail-closed preflight
+
+```sh
+export UTOPIA_LAND_ADDRESS='0x...'
+export UTOPIA_ELIGIBILITY_REGISTRY='0x...'
+export UTOPIA_OWNER='0xYourDeployedSafe'
+bash script/preflight-mainnet.sh
+```
+
+It fails unless both contracts are source verified, ownership and registry wiring
+match, the reward window is active, the official Robinhood asset registry still
+matches all five token addresses, and reserves cover sold plus every open plot.
+
+## 6. site activation and fresh-wallet proof
+
+Only after the preflight passes, provide the production RPC, land address, and
+eligibility application URL to the frontend runtime configuration. Then use the
+eligible smoke wallet to record:
+
+1. Wallet connected to chain 4663.
+2. Plot purchase receipt succeeded.
+3. The selected plot is white and appears under **your land**.
+4. Claimable reward increases before the immutable deadline.
+5. Claim receipt reports the exact paid Stock Token amount.
+6. The dashboard and wallet both show the increased canonical token balance.
+
+Do not mark the mainnet profile ready or advertise a live launch before this trace
+and its explorer links are recorded in `.agent/log.md`.

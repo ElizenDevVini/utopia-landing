@@ -19,11 +19,16 @@ http://localhost:4173/?net=testnet-v2
 http://localhost:4173/app.html?net=testnet-v2
 ```
 
-A production host can inject a provider endpoint before the module scripts:
+A production host can inject the release values before the module scripts:
 
 ```html
 <script>
-  window.UTOPIA_RUNTIME = { network: 'mainnet', rpcUrl: 'https://provider.example' };
+  window.UTOPIA_RUNTIME = {
+    network: 'mainnet',
+    rpcUrl: 'https://provider.example',
+    landAddress: '0xVerifiedLandContract',
+    eligibilityUrl: 'https://eligibility.example'
+  };
 </script>
 ```
 
@@ -32,16 +37,21 @@ origin-restricted provider credential or a caching server-side RPC proxy.
 
 ## Mainnet gate
 
-Mainnet remains disabled until all of the following exist and are recorded in
-`config.js`:
+Mainnet deliberately mirrors the proven native-ETH purchase path; the UTOP
+launch is a separate future release. Mainnet remains disabled until:
 
-- fixed-supply UTOP deployment;
-- reviewed Uniswap v4-compatible or external market-oracle adapter;
-- reviewed and verified `UtopiaLandV3` deployment;
-- funded Stock Token reserves and disclosed multisig/timelock owner;
-- launchpad audit/source-verification gates and jurisdictional review completed.
+- `UtopiaLandMainnet` and `UtopiaEligibility` pass independent review and are
+  source verified on chain 4663 with a disclosed Safe/multisig owner;
+- the reward deadline and five immutable rates are approved;
+- canonical Stock Token reserves cover sold and every open plot;
+- an approved eligibility flow exists for the restricted Stock Tokens;
+- a production RPC is configured and `contracts/script/preflight-mainnet.sh`
+  passes; and
+- an eligible fresh wallet proves buy -> white plot -> dashboard accrual ->
+  claim -> increased wallet Stock Token balance on mainnet.
 
-`UtopiaLandV3.sol` is an undeployed candidate, not production approval.
+The full operator process is in [`contracts/MAINNET.md`](contracts/MAINNET.md).
+No mainnet deployment or reserve transfer has been performed from this repo.
 
 ## Verify
 
@@ -52,5 +62,7 @@ node --check app.js
 node --check iso.js
 node --check config.js
 cd contracts
+forge fmt --check
 forge test
+bash -n script/preflight-mainnet.sh
 ```

@@ -142,6 +142,45 @@
 }
 .holdlist .amt { color: var(--muted); }
 
+.wallet-stocks {
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--rule);
+}
+
+.wallet-stocks .eyebrow {
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.stock-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 0.65rem;
+  min-height: 1.85rem;
+  font-size: 0.88rem;
+}
+
+.stock-row > span { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.side .stock-row .watch-token {
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.76rem;
+  text-decoration: underline;
+}
+
+.side .stock-row .watch-token:hover:not(:disabled) {
+  color: var(--ink);
+  background: transparent;
+}
+
 .dash-foot {
   max-width: none;
   margin: 0;
@@ -161,6 +200,8 @@
 
 @media (max-width: 600px) {
   .bar { flex-wrap: wrap; gap: 0.45rem 1rem; }
-  .bar .wordmark { margin-right: auto; }
+  .bar .wordmark { margin-right: 0; }
+  .bar .xlink { margin-left: auto; margin-right: 0; }
+  .bar #wallet { white-space: nowrap; }
   .crumb { order: 3; flex-basis: 100%; }
 }

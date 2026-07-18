@@ -1,5 +1,5 @@
-// Network-aware Utopia dashboard. Mainnet remains deliberately disabled until
-// reviewed contract and oracle addresses are configured.
+// Network-aware Utopia dashboard. Mainnet fails closed until the production
+// deployment, provider, reserves, and eligibility flow are configured.
 
 import {
   createPublicClient, createWalletClient, custom, http,
@@ -48,10 +48,14 @@ const abi = parseAbi([
   'function tokens(uint256) view returns (address)',
   'function tokensPerEthWad(uint256) view returns (uint256)',
   'function tokensPerUtopWad(uint256) view returns (uint256)',
+  'function totalCommittedByToken(uint256) view returns (uint256)',
+  'function rewardEnd() view returns (uint64)',
+  'function isEligible(address) view returns (bool)',
 ]);
 
 const erc20Abi = parseAbi([
   'function balanceOf(address) view returns (uint256)',
+  'function balanceOfUI(address) view returns (uint256)',
   'function allowance(address,address) view returns (uint256)',
   'function approve(address,uint256) returns (bool)',
   'function faucet()',
@@ -89,10 +93,14 @@ let walletClient = null;
 let selected = -1;
 let hoverId = -1;
 let claimables = new Map();
-let cityClaims = new Map(); // accrued rewards for every owned plot, anyone's
 let rates = null; // stock-wei streamed per payment-wei of price per year
 let paymentBalance = null;
 let treasuryBalances = null;
+let treasuryCommitted = null;
+let tokenAddresses = null;
+let walletStockBalances = null;
+let rewardEnd = null;
+let accountEligible = null;
 
 function priceNow(id) {
   return NET.landVersion === 2 ? (basePrices[id] * multiplier) / WAD : basePrices[id];
@@ -123,6 +131,12 @@ function fmtMult() {
 function perYear(id) {
   if (!rates) return null;
   return (basePrices[id] * BigInt(apys[id]) * rates[tokIdx[id]] * multiplier) / (10000n * WAD * WAD);
+}
+
+function formatRewardEnd() {
+  if (!rewardEnd) return '';
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' })
+    .format(new Date(Number(rewardEnd) * 1000)) + ' UTC';
 }
 
 // ---- rendering ----
@@ -193,14 +207,58 @@ async function loadStatic() {
 
 async function refreshTreasury() {
   if (!NET.ready) return;
-  const tokenAddresses = await Promise.all(Array.from({ length: 5 }, (_, i) =>
-    pub.readContract({ address: LAND, abi, functionName: 'tokens', args: [BigInt(i)] })
-  ));
-  treasuryBalances = await Promise.all(tokenAddresses.map(token =>
-    pub.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [LAND] })
-      .catch(() => null)
-  ));
+  if (!tokenAddresses) {
+    tokenAddresses = await Promise.all(Array.from({ length: 5 }, (_, i) =>
+      pub.readContract({ address: LAND, abi, functionName: 'tokens', args: [BigInt(i)] })
+    ));
+  }
+  const [balances, committed, end] = await Promise.all([
+    Promise.all(tokenAddresses.map(token =>
+      pub.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [LAND] })
+        .catch(() => null)
+    )),
+    NET.landVersion === 4
+      ? Promise.all(Array.from({ length: 5 }, (_, i) =>
+        pub.readContract({ address: LAND, abi, functionName: 'totalCommittedByToken', args: [BigInt(i)] })
+      ))
+      : Promise.resolve(null),
+    NET.landVersion === 4
+      ? pub.readContract({ address: LAND, abi, functionName: 'rewardEnd' })
+      : Promise.resolve(null),
+  ]);
+  treasuryBalances = balances;
+  treasuryCommitted = committed;
+  rewardEnd = end;
+  await refreshWalletStocks();
   renderMarket();
+}
+
+async function refreshWalletStocks() {
+  if (!account || !tokenAddresses) {
+    walletStockBalances = null;
+    renderHoldings();
+    return;
+  }
+  walletStockBalances = await Promise.all(tokenAddresses.map(async token => {
+    try {
+      return await pub.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOfUI', args: [account] });
+    } catch {
+      return pub.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [account] });
+    }
+  }));
+  renderHoldings();
+}
+
+async function refreshEligibility() {
+  if (!NET.requiresEligibility || !account) {
+    accountEligible = NET.requiresEligibility ? null : true;
+  } else {
+    accountEligible = await pub.readContract({
+      address: LAND, abi, functionName: 'isEligible', args: [account],
+    }).catch(() => false);
+  }
+  renderHoldings();
+  if (selected >= 0) renderSel();
 }
 
 function unpackBits(words, out) {
@@ -243,7 +301,8 @@ async function refreshOwnership() {
   contractLink.target = '_blank';
   contractLink.rel = 'noopener';
   contractLink.textContent = 'contract';
-  const multiplierText = NET.landVersion === 1 ? '' : ' · market multiplier ' + fmtMult();
+  const multiplierText = NET.landVersion === 2 || NET.landVersion === 3
+    ? ' · market multiplier ' + fmtMult() : '';
   statusEl.replaceChildren(
     document.createTextNode(ownedCount + ' of 1,024 plots owned · ' + NET.label + multiplierText + ' · '),
     contractLink,
@@ -265,20 +324,8 @@ async function refreshClaimables() {
   if (selected >= 0 && mine[selected]) renderSel();
 }
 
-// accrual across the whole city, so anyone can see the land earning
-async function refreshCityClaims() {
-  if (!NET.ready) return;
-  const ids = [];
-  for (let i = 0; i < PLOTS; i++) if (owned[i]) ids.push(i);
-  const vals = await Promise.all(ids.map(id =>
-    pub.readContract({ address: LAND, abi, functionName: 'claimable', args: [BigInt(id)] }).catch(() => null)
-  ));
-  cityClaims = new Map(ids.map((id, i) => [id, vals[i]]));
-  if (selected >= 0 && owned[selected]) renderSel();
-}
-
 async function loadRates() {
-  const getter = NET.landVersion === 1 ? 'tokensPerEthWad' : 'tokensPerUtopWad';
+  const getter = NET.payment === 'native' ? 'tokensPerEthWad' : 'tokensPerUtopWad';
   rates = await Promise.all(Array.from({ length: 5 }, (_, i) =>
     pub.readContract({ address: LAND, abi, functionName: getter, args: [BigInt(i)] })
   ));
@@ -289,8 +336,9 @@ async function load() {
   try {
     if (!basePrices) await loadStatic();
     if (!rates) await loadRates().catch(() => {});
-    await Promise.all([refreshOwnership(), refreshTreasury()]);
-    await refreshCityClaims(); // needs the ownership bitmap populated first
+    await refreshTreasury();
+    await Promise.all([refreshOwnership(), refreshEligibility()]);
+    await refreshClaimables();
     loaded = true;
   } catch (e) {
     statusEl.textContent = 'the chain is not answering right now. retrying shortly.';
@@ -329,7 +377,8 @@ async function ensureWalletChain(wallet) {
 
 async function connect({ prompt = true } = {}) {
   if (!NET.ready) {
-    selEl.innerHTML = '<h3>coming soon</h3><p class="quiet-note">this network opens shortly. the live city is one click back.</p>';
+    selEl.innerHTML = '<h3>mainnet pending</h3><p class="quiet-note">' +
+      NET.activationIssue + '. the testnet city remains available.</p>';
     return null;
   }
   if (!window.ethereum) {
@@ -343,7 +392,7 @@ async function connect({ prompt = true } = {}) {
   await ensureWalletChain(wallet);
   account = addr;
   walletLink.textContent = short(addr);
-  await refreshOwnership();
+  await Promise.all([refreshOwnership(), refreshEligibility(), refreshWalletStocks()]);
   await refreshClaimables();
   return wallet;
 }
@@ -363,7 +412,15 @@ if (window.ethereum) {
     account = accs[0] || null;
     walletLink.textContent = account ? short(account) : 'connect wallet';
     claimables.clear();
-    if (NET.ready) await refreshOwnership().catch(() => {});
+    walletStockBalances = null;
+    accountEligible = NET.requiresEligibility ? null : true;
+    if (NET.ready) {
+      await Promise.all([
+        refreshOwnership().catch(() => {}),
+        refreshEligibility().catch(() => {}),
+        refreshWalletStocks().catch(() => {}),
+      ]);
+    }
     if (NET.ready && account) await refreshClaimables().catch(() => {});
   });
   window.ethereum.on?.('chainChanged', chainIdHex => {
@@ -371,6 +428,8 @@ if (window.ethereum) {
       account = null;
       mine.fill(0);
       claimables.clear();
+      walletStockBalances = null;
+      accountEligible = NET.requiresEligibility ? null : true;
       walletLink.textContent = 'switch network';
       renderHoldings();
       schedule();
@@ -382,6 +441,8 @@ if (window.ethereum) {
     account = null;
     mine.fill(0);
     claimables.clear();
+    walletStockBalances = null;
+    accountEligible = NET.requiresEligibility ? null : true;
     walletLink.textContent = 'connect wallet';
     renderHoldings();
     schedule();
@@ -410,21 +471,25 @@ function renderSel() {
     '<div class="row"><span class="k">reward token</span><span class="v">' + SYMBOLS[tokIdx[id]] + '</span></div>' +
     streams;
   if (!owned[id]) {
+    const blocked = account && NET.requiresEligibility && accountEligible !== true;
+    const label = blocked
+      ? 'eligibility required to buy'
+      : account ? 'buy for ' + fmtPrice(priceNow(id)) : 'connect wallet to buy';
     selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + '</h3>' + rows +
-      '<button id="act" data-act="buy">' + (account ? 'buy for ' + fmtPrice(priceNow(id)) : 'connect wallet to buy') + '</button>' +
+      '<button id="act" data-act="buy"' + (blocked ? ' disabled' : '') + '>' + label + '</button>' +
+      (blocked ? '<p><a href="' + NET.eligibilityUrl + '" target="_blank" rel="noopener">check eligibility</a></p>' : '') +
       '<p class="txstate"></p>';
   } else if (mine[id]) {
-    const c = claimables.get(id) ?? cityClaims.get(id);
+    const c = claimables.get(id);
+    const blocked = NET.requiresEligibility && accountEligible !== true;
     selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · yours</h3>' + rows +
       '<div class="row"><span class="k">claimable</span><span class="v">' + (c != null ? fmtTok(c, tokIdx[id]) : '…') + '</span></div>' +
-      '<button id="act" data-act="claim">claim rewards</button>' +
+      '<button id="act" data-act="claim"' + (blocked ? ' disabled' : '') + '>' +
+      (blocked ? 'eligibility required to claim' : 'claim rewards') + '</button>' +
+      (blocked ? '<p><a href="' + NET.eligibilityUrl + '" target="_blank" rel="noopener">renew eligibility</a></p>' : '') +
       '<p class="txstate"></p>';
   } else {
-    const c = cityClaims.get(id);
-    const accrued = c != null
-      ? '<div class="row"><span class="k">accrued</span><span class="v">' + fmtTok(c, tokIdx[id]) + '</span></div>'
-      : '';
-    selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · owned</h3>' + rows + accrued +
+    selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · owned</h3>' + rows +
       '<p><a href="' + EXPLORER + '/token/' + LAND + '/instance/' + id + '" target="_blank" rel="noopener">deed on the explorer</a></p>';
   }
 }
@@ -447,6 +512,10 @@ function txPending(hash_, root) {
   link.rel = 'noopener';
   link.textContent = short(hash_);
   el.replaceChildren(document.createTextNode('pending · '), link);
+}
+
+function requireSuccessfulReceipt(receipt, action) {
+  if (receipt.status !== 'success') throw new Error(action + ' transaction reverted');
 }
 
 function decodeClaimed(receipt) {
@@ -491,6 +560,11 @@ async function doTx(act, ids, trigger) {
   try {
     const wallet = await connect({ prompt: !account });
     if (!wallet) return;
+    root = txRoot(act);
+    if (NET.requiresEligibility && accountEligible !== true && act !== 'faucet') {
+      txState('this wallet is not currently eligible.', root);
+      return;
+    }
     if (btn) btn.disabled = true;
     let hash_;
     if (act === 'buy') {
@@ -498,7 +572,9 @@ async function doTx(act, ids, trigger) {
       const price = priceNow(id);
       if (paymentBalance != null && paymentBalance < price) {
         const message = NET.payment === 'native'
-          ? 'not enough test ETH. use the faucet link below.'
+          ? NET.key === 'mainnet'
+            ? 'not enough ETH for this plot and gas.'
+            : 'not enough test ETH. use the faucet link below.'
           : NET.utopFaucet
             ? 'not enough UTOP. use “get 1,000 UTOP” below.'
             : 'not enough UTOP in this wallet.';
@@ -515,11 +591,12 @@ async function doTx(act, ids, trigger) {
           const approvalHash = await wallet.writeContract({
             address: UTOP, abi: erc20Abi, functionName: 'approve', args: [LAND, price], account,
           });
-          await pub.waitForTransactionReceipt({ hash: approvalHash });
+          const approvalReceipt = await pub.waitForTransactionReceipt({ hash: approvalHash });
+          requireSuccessfulReceipt(approvalReceipt, 'approval');
         }
       }
       txState('confirm the buy in your wallet…', root);
-      hash_ = await wallet.writeContract({
+      const { request } = await pub.simulateContract({
         address: LAND,
         abi,
         functionName: 'buy',
@@ -527,17 +604,27 @@ async function doTx(act, ids, trigger) {
         ...(NET.payment === 'native' ? { value: price } : {}),
         account,
       });
+      hash_ = await wallet.writeContract(request);
     } else if (act === 'claim') {
-      hash_ = await wallet.writeContract({ address: LAND, abi, functionName: 'claim', args: [BigInt(ids[0])], account });
+      const { request } = await pub.simulateContract({
+        address: LAND, abi, functionName: 'claim', args: [BigInt(ids[0])], account,
+      });
+      hash_ = await wallet.writeContract(request);
     } else if (act === 'claimMany') {
-      hash_ = await wallet.writeContract({ address: LAND, abi, functionName: 'claimMany', args: [ids.map(BigInt)], account });
+      const { request } = await pub.simulateContract({
+        address: LAND, abi, functionName: 'claimMany', args: [ids.map(BigInt)], account,
+      });
+      hash_ = await wallet.writeContract(request);
     } else {
       hash_ = await wallet.writeContract({ address: UTOP, abi: erc20Abi, functionName: 'faucet', account });
     }
     txPending(hash_, root);
     const receipt = await pub.waitForTransactionReceipt({ hash: hash_ });
-    await Promise.all([refreshOwnership(), refreshTreasury()]);
+    requireSuccessfulReceipt(receipt, act);
+    await refreshTreasury();
+    await Promise.all([refreshOwnership(), refreshEligibility()]);
     await refreshClaimables();
+    if (act === 'buy' && !mine[ids[0]]) throw new Error('purchase confirmed but ownership did not refresh');
     renderSel();
     root = txRoot(act);
     const success = act === 'buy'
@@ -558,6 +645,18 @@ selEl.addEventListener('click', e => {
 
 // ---- holdings ----
 
+function walletStocksHtml() {
+  if (!tokenAddresses) return '<p class="quiet-note">reading wallet Stock Tokens…</p>';
+  const rows = SYMBOLS.map((symbol, i) => {
+    const amount = walletStockBalances?.[i];
+    return '<div class="stock-row"><a href="' + EXPLORER + '/token/' + tokenAddresses[i] +
+      '" target="_blank" rel="noopener">' + symbol + '</a><span>' +
+      (amount != null ? fmtTok(amount, i).replace(' ' + symbol, '') : '…') + '</span>' +
+      '<button class="watch-token" data-token="' + i + '">add</button></div>';
+  }).join('');
+  return '<div class="wallet-stocks"><p class="eyebrow">Stock Tokens in this wallet</p>' + rows + '</div>';
+}
+
 function renderHoldings() {
   if (!account) {
     holdingsEl.innerHTML = '<p class="quiet-note">connect a wallet to see your plots and rewards.</p>';
@@ -566,6 +665,13 @@ function renderHoldings() {
   const paymentName = NET.payment === 'native' ? 'ETH balance' : 'UTOP balance';
   const bal = '<div class="row"><span class="k">' + paymentName + '</span><span class="v">' +
     (paymentBalance != null ? fmtPrice(paymentBalance) : '…') + '</span></div>';
+  const eligibility = NET.requiresEligibility
+    ? '<div class="row"><span class="k">eligibility</span><span class="v">' +
+      (accountEligible === true ? 'active' : accountEligible === false
+        ? '<a href="' + NET.eligibilityUrl + '" target="_blank" rel="noopener">required</a>' : 'checking…') +
+      '</span></div>'
+    : '';
+  const portfolio = walletStocksHtml();
   const faucetBtn = NET.utopFaucet ? '<button id="getutop">get 1,000 UTOP</button>' : '';
   const nativeFaucet = NET.nativeFaucet
     ? '<p><a href="' + NET.nativeFaucet + '" target="_blank" rel="noopener">get test ETH for gas</a></p>'
@@ -573,8 +679,8 @@ function renderHoldings() {
   const ids = [];
   for (let i = 0; i < PLOTS; i++) if (mine[i]) ids.push(i);
   if (!ids.length) {
-    holdingsEl.innerHTML = bal + '<p class="quiet-note">no plots yet. click an open one on the map.</p>' +
-      faucetBtn + nativeFaucet + '<p class="txstate"></p>';
+    holdingsEl.innerHTML = bal + eligibility + '<p class="quiet-note">no plots yet. click an open one on the map.</p>' +
+      portfolio + faucetBtn + nativeFaucet + '<p class="txstate"></p>';
     return;
   }
   const items = ids.map(id => {
@@ -582,9 +688,11 @@ function renderHoldings() {
     return '<li><button class="plotlink" data-id="' + id + '">plot ' + id + '</button>' +
       '<span class="amt">' + (c != null ? fmtTok(c, tokIdx[id]) : '…') + '</span></li>';
   }).join('');
-  holdingsEl.innerHTML = bal + '<ul class="holdlist">' + items + '</ul>' +
-    '<button id="claimall">' + (ids.length > MAX_CLAIM_BATCH ? 'claim first 64' : 'claim all') + '</button> ' +
-    faucetBtn + nativeFaucet + '<p class="txstate"></p>';
+  const claimBlocked = NET.requiresEligibility && accountEligible !== true;
+  holdingsEl.innerHTML = bal + eligibility + '<ul class="holdlist">' + items + '</ul>' +
+    '<button id="claimall"' + (claimBlocked ? ' disabled' : '') + '>' +
+    (claimBlocked ? 'eligibility required to claim' : ids.length > MAX_CLAIM_BATCH ? 'claim first 64' : 'claim all') +
+    '</button> ' + faucetBtn + nativeFaucet + portfolio + '<p class="txstate"></p>';
 }
 
 holdingsEl.addEventListener('click', e => {
@@ -604,6 +712,14 @@ holdingsEl.addEventListener('click', e => {
   }
   const faucet = e.target.closest('#getutop');
   if (faucet) doTx('faucet', [], faucet);
+  const watch = e.target.closest('.watch-token');
+  if (watch && tokenAddresses && window.ethereum) {
+    const index = Number(watch.dataset.token);
+    window.ethereum.request({
+      method: 'wallet_watchAsset',
+      params: { type: 'ERC20', options: { address: tokenAddresses[index], symbol: SYMBOLS[index], decimals: 18 } },
+    }).catch(() => {});
+  }
 });
 
 // ---- market ----
@@ -621,20 +737,27 @@ function renderMarket() {
     marketEl.innerHTML = '<p class="quiet-note">every plot is owned. the city is sold out.</p>';
     return;
   }
+  const reserveShortfall = treasuryBalances && treasuryCommitted && treasuryBalances.some((balance, i) =>
+    balance == null || balance < treasuryCommitted[i]
+  );
   const reserves = treasuryBalances == null
     ? '<p class="quiet-note">checking reward reserves…</p>'
-    : treasuryBalances.every(balance => balance === 0n)
-      ? '<p class="reserve-warning">reward treasury empty · claims accrue as debt but cannot pay out</p>'
-      : '<p class="quiet-note">reward reserves · ' + treasuryBalances.map((balance, i) =>
-        balance == null ? SYMBOLS[i] + ' unavailable' : fmtTok(balance, i)
-      ).join(' · ') + '</p>';
-  const marketNote = NET.landVersion === 1
-    ? 'plot prices are fixed in test ETH. reward rates are reference streaming rates, not investment APY.'
-    : NET.landVersion === 2
-      ? 'testnet V2 scales both UTOP plot prices and reward rates with its current market multiplier.'
-      : 'mainnet-candidate plot prices stay fixed in UTOP; checkpointed market growth affects only future reward intervals.';
-  const multiplierRow = NET.landVersion === 1 ? '' :
-    '<div class="row"><span class="k">multiplier</span><span class="v">' + fmtMult() + '</span></div>';
+    : '<p class="' + (reserveShortfall ? 'reserve-warning' : 'quiet-note') + '">reward reserves · ' +
+      treasuryBalances.map((balance, i) => {
+        if (balance == null) return SYMBOLS[i] + ' unavailable';
+        const committed = treasuryCommitted?.[i];
+        return fmtTok(balance, i) + (committed != null ? ' (' + fmtTok(committed, i) + ' reserved)' : '');
+      }).join(' · ') + '</p>';
+  const marketNote = NET.landVersion === 4
+    ? 'fixed ETH prices · rewards stop on ' + formatRewardEnd() + ' · every sold plot is fully reserved.'
+    : NET.landVersion === 1
+      ? 'plot prices are fixed in test ETH. reward rates are reference streaming rates, not investment APY.'
+      : NET.landVersion === 2
+        ? 'testnet V2 scales both UTOP plot prices and reward rates with its current market multiplier.'
+        : 'mainnet-candidate plot prices stay fixed in UTOP; checkpointed market growth affects only future reward intervals.';
+  const multiplierRow = NET.landVersion === 2 || NET.landVersion === 3
+    ? '<div class="row"><span class="k">multiplier</span><span class="v">' + fmtMult() + '</span></div>'
+    : '';
   marketEl.innerHTML =
     '<div class="row"><span class="k">open plots</span><span class="v">' + (PLOTS - ownedCount) + '</span></div>' +
     '<div class="row"><span class="k">streaming now</span><span class="v">' + ownedCount + ' plots</span></div>' +
@@ -678,7 +801,7 @@ if (fine) {
     hoverId = id;
     if (id >= 0) {
       const l1 = 'plot ' + id + (owned[id] ? (mine[id] ? ' · yours' : ' · owned') : ' · ' + fmtPrice(priceNow(id)));
-      const acc = owned[id] ? (cityClaims.get(id) ?? claimables.get(id)) : null;
+      const acc = mine[id] ? claimables.get(id) : null;
       const l2 = acc != null
         ? 'earning · ' + fmtTok(acc, tokIdx[id]) + ' accrued'
         : (apys[id] / 100).toFixed(2) + '% base rate · rewards in ' + SYMBOLS[tokIdx[id]];
@@ -697,7 +820,6 @@ if (fine) {
 
 setInterval(() => { if (loaded && !document.hidden) refreshOwnership().catch(() => {}); }, 15000);
 setInterval(() => { if (loaded && !document.hidden && account) refreshClaimables().catch(() => {}); }, 10000);
-setInterval(() => { if (loaded && !document.hidden) refreshCityClaims().catch(() => {}); }, 10000);
 setInterval(() => { if (loaded && !document.hidden) refreshTreasury().catch(() => {}); }, 60000);
 
 window.addEventListener('resize', () => { fit(); schedule(); });
@@ -708,7 +830,9 @@ function configurePage() {
 
   const disclaimer = document.getElementById('network-disclaimer');
   disclaimer.textContent = NET.key === 'mainnet'
-    ? 'this network opens shortly.'
+    ? NET.ready
+      ? 'mainnet · eligibility required · Stock Tokens are restricted tokenized debt securities.'
+      : 'mainnet is not active · ' + NET.activationIssue + '.'
     : 'testnet only. test ETH and testnet Stock Tokens have no value. not an offer of anything.';
 
   const links = [
@@ -723,9 +847,9 @@ function configurePage() {
   }
 
   if (!NET.ready) {
-    walletLink.textContent = 'coming soon';
-    holdingsEl.innerHTML = '<p class="quiet-note">this network opens shortly.</p>';
-    marketEl.innerHTML = '<p class="quiet-note">mainnet deployment and reviewed oracle pending.</p>';
+    walletLink.textContent = 'mainnet pending';
+    holdingsEl.innerHTML = '<p class="quiet-note">mainnet is disabled until the production release gates pass.</p>';
+    marketEl.innerHTML = '<p class="quiet-note">' + NET.activationIssue + '.</p>';
   }
 }
 
@@ -736,5 +860,5 @@ if (NET.ready) {
   load();
   connect({ prompt: false }).catch(() => {});
 } else {
-  statusEl.textContent = NET.label + ' opens shortly. the live city is one click back.';
+  statusEl.textContent = NET.label + ' is not active · ' + NET.activationIssue + '. the testnet city remains available.';
 }

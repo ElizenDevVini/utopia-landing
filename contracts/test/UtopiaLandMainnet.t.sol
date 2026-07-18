@@ -236,6 +236,24 @@ contract UtopiaLandMainnetTest is Test {
         _buy(alice, id);
         assertGe(stocks[idx].balanceOf(address(land)), land.totalCommittedByToken(idx));
     }
+
+    function testFuzz_repeatedClaimsNeverExceedCommitment(uint256 firstRaw, uint256 secondRaw) public {
+        uint256 id = 5;
+        uint256 idx = land.tokenIndexOf(id);
+        uint256 first = bound(firstRaw, 1, 180 days);
+        uint256 second = bound(secondRaw, 1, 180 days);
+        _buy(alice, id);
+
+        vm.warp(block.timestamp + first);
+        vm.prank(alice);
+        land.claim(id);
+        assertGe(stocks[idx].balanceOf(address(land)), land.totalCommittedByToken(idx));
+
+        vm.warp(block.timestamp + second);
+        vm.prank(alice);
+        land.claim(id);
+        assertGe(stocks[idx].balanceOf(address(land)), land.totalCommittedByToken(idx));
+    }
 }
 
 contract UtopiaEligibilityTest is Test {

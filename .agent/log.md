@@ -36,3 +36,20 @@
 - 2026-07-18: Re-audited `/Users/ash/utopia-launchpad`. UTOP creation and auction
   work is fork-only; no token exists on mainnet from this repository. Its recorded
   release status remains NO-GO on audit/source-verification/dependency gates.
+- 2026-07-18: Implemented production candidates `UtopiaLandMainnet` and
+  `UtopiaEligibility`: finite immutable rewards, sale-time full commitments,
+  locked committed reserves, current-eligibility checks, constant-time bitmaps,
+  bounded batches, direct multisig ownership, and no market oracle.
+- 2026-07-18: Official Robinhood asset API and chain-4663 reads matched TSLA/AAPL/
+  NVDA/MSFT/AMZN addresses; each reported active, correct symbol, 18 decimals, and
+  non-empty proxy runtime.
+- 2026-07-18: Full Forge suite passed 73/73, including 512 combined fuzz runs for
+  sale and repeated-claim reserve invariants. Deployment script simulated on chain
+  4663 with explicit non-production inputs; estimated gas was 4,457,788. No broadcast.
+- 2026-07-18: Frontend now checks receipt status, simulates buy/claim, asserts the
+  purchased plot appears in the wallet bitmap, and renders five wallet Stock Token
+  balances. Removed the up-to-1,024-call city-wide accrual poll.
+- 2026-07-18: Chrome smoke loaded live testnet state with an injected read-only
+  wallet: six deeds, claimables, five wallet-token rows, and no page exceptions.
+  Mainnet-disabled Chrome smoke passed at desktop and a true 390px viewport; document
+  width equaled viewport width and keyboard focus reached `mainnet pending`.

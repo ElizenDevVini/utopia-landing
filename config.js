@@ -1,6 +1,7 @@
 // Network profiles. Default is testnet; append ?net=mainnet to preview the
 // deliberately disabled mainnet state. A host may set
-// window.UTOPIA_RUNTIME = { network, rpcUrl } before modules load.
+// window.UTOPIA_RUNTIME = { network, rpcUrl, landAddress, eligibilityUrl }
+// before modules load. Mainnet fails closed without every production value.
 
 export const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
 
@@ -21,6 +22,8 @@ export const NETWORKS = {
     payment: 'native',
     utopFaucet: false,
     nativeFaucet: 'https://faucet.testnet.chain.robinhood.com',
+    requiresEligibility: false,
+    eligibilityUrl: '',
   },
   'testnet-v2': {
     key: 'testnet-v2',
@@ -35,6 +38,8 @@ export const NETWORKS = {
     payment: 'utop',
     utopFaucet: true,
     nativeFaucet: 'https://faucet.testnet.chain.robinhood.com',
+    requiresEligibility: false,
+    eligibilityUrl: '',
   },
   mainnet: {
     key: 'mainnet',
@@ -43,25 +48,41 @@ export const NETWORKS = {
     rpc: 'https://rpc.mainnet.chain.robinhood.com',
     explorer: 'https://robinhoodchain.blockscout.com',
     // filled in after the mainnet deploy (contracts/MAINNET.md)
-    // fill `land` after running contracts/MAINNET.md; ETH-priced like testnet
+    // Fill only after every gate in contracts/MAINNET.md passes.
     land: '',
     utop: '',
     symbols: ['TSLA', 'AAPL', 'NVDA', 'MSFT', 'AMZN'],
-    landVersion: 1,
+    landVersion: 4,
     payment: 'native',
     utopFaucet: false,
     nativeFaucet: '',
+    requiresEligibility: true,
+    eligibilityUrl: '',
   },
 };
 
 const runtime = globalThis.UTOPIA_RUNTIME || {};
 const pick = runtime.network || new URLSearchParams(location.search).get('net');
 const selected = NETWORKS[pick] || NETWORKS.testnet;
+const rpc = runtime.rpcUrl || selected.rpc;
+const land = runtime.landAddress || selected.land;
+const eligibilityUrl = runtime.eligibilityUrl || selected.eligibilityUrl;
+const publicMainnetRpc = 'https://rpc.mainnet.chain.robinhood.com';
+const hasDeployment = Boolean(land && (selected.payment === 'native' || selected.utop));
+const hasProductionProvider = selected.key !== 'mainnet' || rpc !== publicMainnetRpc;
+const hasEligibilityFlow = !selected.requiresEligibility || Boolean(eligibilityUrl);
 
 export const NET = Object.freeze({
   ...selected,
-  rpc: runtime.rpcUrl || selected.rpc,
-  ready: Boolean(selected.land && (selected.payment === 'native' || selected.utop)),
+  rpc,
+  land,
+  eligibilityUrl,
+  ready: hasDeployment && hasProductionProvider && hasEligibilityFlow,
+  activationIssue: !hasDeployment
+    ? 'verified mainnet deployment pending'
+    : !hasProductionProvider
+      ? 'production RPC pending'
+      : !hasEligibilityFlow ? 'eligibility flow pending' : '',
 });
 
 export function addressUrl(address) {
