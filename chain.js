@@ -51,7 +51,10 @@ let prices = null; // base prices, bigint UTOP wei
 let apys = null; // Uint16Array
 let tokIdx = null; // Uint8Array
 let owned = new Uint8Array(PLOTS);
+let currentOwned = new Uint8Array(PLOTS);
 let ownedCount = 0;
+let currentOwnedCount = 0;
+const legacyLandForPlot = new Array(PLOTS).fill(null);
 let multiplier = WAD;
 let loaded = false;
 let selected = -1;
@@ -170,7 +173,10 @@ async function refreshOwnership() {
       : Promise.resolve(WAD),
   ]);
   multiplier = mult;
-  unpackBits(bm, owned);
+  unpackBits(bm, currentOwned);
+  owned.set(currentOwned);
+  currentOwnedCount = currentOwned.reduce((sum, bit) => sum + bit, 0);
+  legacyLandForPlot.fill(null);
   // codex: keep the public landing map consistent with the dashboard by
   // preserving purchases made against configured earlier land contracts.
   for (const legacy of NET.legacyLands || []) {
@@ -181,6 +187,11 @@ async function refreshOwnership() {
         functionName: 'ownershipBitmap',
       });
       orBits(legacyBitmap, owned);
+      for (let i = 0; i < PLOTS; i++) {
+        if (!currentOwned[i] && ((legacyBitmap[i >> 8] >> BigInt(i & 255)) & 1n)) {
+          legacyLandForPlot[i] ||= legacy;
+        }
+      }
     } catch {}
   }
   ownedCount = owned.reduce((sum, bit) => sum + bit, 0);
@@ -190,7 +201,10 @@ async function refreshOwnership() {
   contractLink.rel = 'noopener';
   contractLink.textContent = 'contract';
   statusEl.replaceChildren(
-    document.createTextNode(ownedCount + ' of 1,024 plots owned · ' + NET.label + ' · '),
+    document.createTextNode(
+      ownedCount + ' of 1,024 plots owned · ' + currentOwnedCount + ' current + ' +
+      (ownedCount - currentOwnedCount) + ' legacy · ' + NET.label + ' · '
+    ),
     contractLink,
   );
   schedule();
@@ -214,6 +228,18 @@ function setPanel(html) {
 // the landing map is read-only; buying and claiming live on the dashboard
 function panelFor(id) {
   const name = 'plot ' + id;
+  if (owned[id] && !currentOwned[id]) {
+    const legacyLand = legacyLandForPlot[id];
+    const legacyLink = legacyLand
+      ? EXPLORER + '/token/' + legacyLand + '/instance/' + id
+      : null;
+    // codex: legacy deeds remain visible, but never inherit current-contract
+    // reward copy or explorer links on the public landing page.
+    setPanel('<b>' + name + ' · legacy deed</b>' +
+      '<p>owned on an earlier land contract · not part of the current reward stream</p>' +
+      (legacyLink ? '<p><a href="' + legacyLink + '" target="_blank" rel="noopener">legacy deed on the explorer</a></p>' : ''));
+    return;
+  }
   const rate = (apys[id] / 100).toFixed(2) + '% base reward rate';
   const reward = 'rewards in ' + SYMBOLS[tokIdx[id]];
   if (!owned[id]) {

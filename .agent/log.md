@@ -95,3 +95,16 @@
 - 2026-07-19 [codex]: Full dashboard fork smoke bought plot 723 through the actual wallet
   flow. UI ownership count advanced 11 -> 12, selected heading became `yours`, Your Land
   contained plot 723, onchain fork owner matched, and Chrome reported zero exceptions.
+- 2026-07-19 [codex]: Continued legacy audit found a confirmed mixed-wallet failure: current
+  plot 503 plus legacy-only plot 758 were both passed to current `claimMany`, reverting the
+  entire batch with `NotMinted()`.
+- 2026-07-19 [codex]: Separated merged display ownership from current reward ownership.
+  Claimable reads and Claim All now use current IDs only; legacy deeds remain visible and are
+  labeled with source-contract explorer links. Market counts current streams separately.
+- 2026-07-19 [codex]: Mixed-wallet fork smoke claimed current plot 503 successfully while
+  excluding legacy plot 758. Legacy-only wallet showed plots 100/133/165 with no Claim All.
+  A normal fork buy still advanced count 22 -> 23 and added plot 623 to Your Land.
+- 2026-07-19 [codex]: Final landing smoke showed 24 total = 19 current + 5 legacy; clicking
+  legacy plot 100 used the old contract link and no current reward copy. Mobile width remained
+  390px and Chrome reported zero exceptions.
+- 2026-07-19 [codex]: Final JS/shell syntax, diff, Forge formatting, and 25/25 tests passed.

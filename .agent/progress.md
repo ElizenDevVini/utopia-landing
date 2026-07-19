@@ -74,3 +74,12 @@
 - An ineligible control still reverts with `NotEligible()`.
 - Two eligible mainnet wallets currently lack enough ETH for the tested plot; this is a
   funding prerequisite, not an eligibility or application failure.
+
+## Codex legacy safety — 2026-07-19
+
+- Fixed mixed current/legacy Claim All batches so only current-contract plots are claimed.
+- Legacy-only wallets retain visible deeds but receive no invalid current claim action.
+- Current streaming count is separate from displayed legacy deed count.
+- Landing and dashboard identify legacy deeds and link to their actual source contract.
+- Mixed-wallet fork claim paid successfully; legacy-only and normal post-buy regressions passed.
+- Live browser state during final smoke: 24 total plots, 19 current and 5 legacy.

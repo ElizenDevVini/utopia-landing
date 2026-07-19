@@ -145,8 +145,12 @@ let apys = null;
 let tokIdx = null;
 let tiers = null; // Uint8Array 0..3
 let owned = new Uint8Array(PLOTS);
+let currentOwned = new Uint8Array(PLOTS);
 let mine = new Uint8Array(PLOTS);
 let ownedCount = 0;
+let currentOwnedCount = 0;
+const legacyLandForPlot = new Array(PLOTS).fill(null);
+let currentMine = new Uint8Array(PLOTS);
 let multiplier = WAD;
 let loaded = false;
 let account = null;
@@ -415,12 +419,20 @@ async function refreshOwnership() {
       : Promise.resolve(WAD),
   ]);
   multiplier = mult;
-  unpackBits(bm, owned);
+  unpackBits(bm, currentOwned);
+  owned.set(currentOwned);
+  currentOwnedCount = currentOwned.reduce((a, b) => a + b, 0);
+  legacyLandForPlot.fill(null);
   // merge in plots bought on earlier contracts so nobody's purchase disappears
   for (const legacy of NET.legacyLands || []) {
     try {
       const lbm = await pub.readContract({ address: legacy, abi, functionName: 'ownershipBitmap' });
       orBits(lbm, owned);
+      // codex: retain the source contract so legacy deeds never masquerade as
+      // current reward-bearing plots in selection and holdings views.
+      for (let i = 0; i < PLOTS; i++) {
+        if (!currentOwned[i] && ((lbm[i >> 8] >> BigInt(i & 255)) & 1n)) legacyLandForPlot[i] ||= legacy;
+      }
     } catch {}
   }
   ownedCount = owned.reduce((a, b) => a + b, 0);
@@ -431,7 +443,8 @@ async function refreshOwnership() {
         ? pub.getBalance({ address: account })
         : pub.readContract({ address: UTOP, abi: erc20Abi, functionName: 'balanceOf', args: [account] }),
     ]);
-    unpackBits(my, mine);
+    unpackBits(my, currentMine);
+    mine.set(currentMine);
     // your plots on earlier contracts count as yours too
     for (const legacy of NET.legacyLands || []) {
       try {
@@ -442,6 +455,7 @@ async function refreshOwnership() {
     paymentBalance = bal;
   } else {
     mine.fill(0);
+    currentMine.fill(0);
     paymentBalance = null;
   }
   const contractLink = document.createElement('a');
@@ -463,7 +477,8 @@ async function refreshOwnership() {
 async function refreshClaimables() {
   if (!NET.ready) return;
   const ids = [];
-  for (let i = 0; i < PLOTS; i++) if (mine[i]) ids.push(i);
+  // codex: current LAND cannot claim IDs that exist only on a legacy contract.
+  for (let i = 0; i < PLOTS; i++) if (currentMine[i]) ids.push(i);
   const vals = await Promise.all(ids.map(id =>
     pub.readContract({ address: LAND, abi, functionName: 'claimable', args: [BigInt(id)] }).catch(() => null)
   ));
@@ -587,6 +602,7 @@ function attachProviderEvents(p) {
     if (Number(chainIdHex) !== chain.id) {
       account = null;
       mine.fill(0);
+      currentMine.fill(0);
       claimables.clear();
       walletStockBalances = null;
       accountEligible = NET.requiresEligibility ? null : true;
@@ -600,6 +616,7 @@ function attachProviderEvents(p) {
   p.on('disconnect', () => {
     account = null;
     mine.fill(0);
+    currentMine.fill(0);
     claimables.clear();
     walletStockBalances = null;
     accountEligible = NET.requiresEligibility ? null : true;
@@ -663,6 +680,18 @@ function renderSel() {
     return;
   }
   const id = selected;
+  if (owned[id] && !currentOwned[id]) {
+    const legacyLand = legacyLandForPlot[id];
+    const relationship = mine[id] ? 'yours · legacy deed' : 'owned · legacy deed';
+    const deedLink = legacyLand
+      ? '<p><a href="' + EXPLORER + '/token/' + legacyLand + '/instance/' + id +
+        '" target="_blank" rel="noopener">legacy deed on the explorer</a></p>'
+      : '';
+    selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · ' + relationship + '</h3>' +
+      '<p class="quiet-note">This plot remains visible from an earlier land contract. It is not part of the current contract’s reward stream or claim batch.</p>' +
+      deedLink;
+    return;
+  }
   const yr = perYear(id);
   const streams = yr != null
     ? '<div class="row"><span class="k">streams</span><span class="v">' + fmtTok(yr, tokIdx[id]) + ' / year</span></div>'
@@ -840,13 +869,21 @@ async function doTx(act, ids, trigger) {
     // it renders as the buyer's tower instantly, even if the follow-up read lags
     if (act === 'buy') {
       owned[ids[0]] = 1;
+      currentOwned[ids[0]] = 1;
       mine[ids[0]] = 1;
+      currentMine[ids[0]] = 1;
       ownedCount = owned.reduce((a, b) => a + b, 0);
+      currentOwnedCount = currentOwned.reduce((a, b) => a + b, 0);
     }
     await refreshTreasury();
     await Promise.all([refreshOwnership(), refreshEligibility()]);
     // re-assert after refresh in case the node's plotsOf read hadn't caught up
-    if (act === 'buy') { owned[ids[0]] = 1; mine[ids[0]] = 1; }
+    if (act === 'buy') {
+      owned[ids[0]] = 1;
+      currentOwned[ids[0]] = 1;
+      mine[ids[0]] = 1;
+      currentMine[ids[0]] = 1;
+    }
     await refreshClaimables();
     renderSel();
     schedule();
@@ -948,13 +985,17 @@ function renderHoldings() {
   const items = ids.map(id => {
     const c = claimables.get(id);
     return '<li><button class="plotlink" data-id="' + id + '">plot ' + id + '</button>' +
-      '<span class="amt">' + (c != null ? fmtTok(c, tokIdx[id]) : '…') + '</span></li>';
+      '<span class="amt">' + (!currentMine[id] ? 'legacy deed' : c != null ? fmtTok(c, tokIdx[id]) : '…') + '</span></li>';
   }).join('');
+  const claimIds = ids.filter(id => currentMine[id]);
   const claimBlocked = NET.requiresEligibility && accountEligible === false;
+  const claimButton = claimIds.length
+    ? '<button id="claimall"' + (claimBlocked ? ' disabled' : '') + '>' +
+      (claimBlocked ? 'eligibility required to claim' : claimIds.length > MAX_CLAIM_BATCH ? 'claim first 64' : 'claim all') +
+      '</button> '
+    : '';
   holdingsEl.innerHTML = bal + eligibility + '<ul class="holdlist">' + items + '</ul>' +
-    '<button id="claimall"' + (claimBlocked ? ' disabled' : '') + '>' +
-    (claimBlocked ? 'eligibility required to claim' : ids.length > MAX_CLAIM_BATCH ? 'claim first 64' : 'claim all') +
-    '</button> ' + faucetBtn + nativeFaucet + portfolio + '<p class="txstate"></p>';
+    claimButton + faucetBtn + nativeFaucet + portfolio + '<p class="txstate"></p>';
 }
 
 holdingsEl.addEventListener('click', e => {
@@ -970,7 +1011,7 @@ holdingsEl.addEventListener('click', e => {
   if (e.target.closest('#claimall')) {
     const btn = e.target.closest('#claimall');
     const ids = [];
-    for (let i = 0; i < PLOTS; i++) if (mine[i]) ids.push(i);
+    for (let i = 0; i < PLOTS; i++) if (currentMine[i]) ids.push(i);
     if (ids.length) doTx('claimMany', ids.slice(0, MAX_CLAIM_BATCH), btn);
     return;
   }
@@ -1019,7 +1060,7 @@ function renderMarket() {
         return fmtTok(balance, i) + (committed != null ? ' (' + fmtTok(committed, i) + ' reserved)' : '');
       }).join(' · ') + '</p>';
   const marketNote = NET.landVersion === 4
-    ? 'fixed ETH prices · rewards stop on ' + formatRewardEnd() + ' · every sold plot is fully reserved.'
+    ? 'fixed ETH prices · rewards stop on ' + formatRewardEnd() + ' · every current-contract sold plot is fully reserved.'
     : NET.landVersion === 1
       ? 'plot prices are fixed in preview ETH. reward rates are reference streaming rates, not investment APY.'
       : NET.landVersion === 2
@@ -1030,7 +1071,10 @@ function renderMarket() {
     : '';
   marketEl.innerHTML =
     '<div class="row"><span class="k">open plots</span><span class="v">' + (PLOTS - ownedCount) + '</span></div>' +
-    '<div class="row"><span class="k">streaming now</span><span class="v">' + ownedCount + ' plots</span></div>' +
+    '<div class="row"><span class="k">streaming now</span><span class="v">' + currentOwnedCount + ' plots</span></div>' +
+    (ownedCount > currentOwnedCount
+      ? '<div class="row"><span class="k">legacy deeds shown</span><span class="v">' + (ownedCount - currentOwnedCount) + '</span></div>'
+      : '') +
     '<div class="row"><span class="k">cheapest</span><span class="v"><button class="plotlink" data-id="' + cheapest + '">plot ' + cheapest + '</button> · ' + fmtPrice(priceNow(cheapest)) + '</span></div>' +
     '<div class="row"><span class="k">highest base rate</span><span class="v"><button class="plotlink" data-id="' + bestApy + '">plot ' + bestApy + '</button> · ' + (apys[bestApy] / 100).toFixed(2) + '%</span></div>' +
     multiplierRow + reserves + '<p class="quiet-note">' + marketNote + '</p>';
