@@ -83,3 +83,15 @@
 - 2026-07-19 [codex]: User requested full post-purchase verification across eligible-wallet
   gating, receipt handling, map ownership, and Your Land hydration. Starting a local-fork
   transaction test; no mainnet broadcast authorized.
+- 2026-07-19 [codex]: Enumerated six current plots across three unique owners; all three
+  owners are currently eligible. An ineligible control returned false and its buy call
+  reverted with the exact `NotEligible()` selector.
+- 2026-07-19 [codex]: Live plot 723 preflight found price 0.00128 ETH, NVDA reward
+  commitment about 0.00001858 token, and about 0.0905 token uncommitted reserve. One
+  eligible owner simulated successfully; two other eligible owners lacked enough live ETH.
+- 2026-07-19 [codex]: On a Robinhood-mainnet Anvil fork, funded and impersonated all three
+  eligible owners. Buys of plots 723, 722, and 721 each returned receipt status `0x1`,
+  and `ownerOf` matched the expected buyer. No mainnet transaction was sent.
+- 2026-07-19 [codex]: Full dashboard fork smoke bought plot 723 through the actual wallet
+  flow. UI ownership count advanced 11 -> 12, selected heading became `yours`, Your Land
+  contained plot 723, onchain fork owner matched, and Chrome reported zero exceptions.

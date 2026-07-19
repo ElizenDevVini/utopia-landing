@@ -62,3 +62,15 @@
 - Fixed stale/unknown eligibility handling and added periodic eligibility refresh for open dashboards.
 - Full Forge behavior tests pass 25/25; formatting, JavaScript syntax, and diff checks pass.
 - Browser regression passed with live chain state and a read-only eligible-wallet injection.
+
+## Codex purchase lifecycle — 2026-07-19
+
+- Verified all three unique current mainnet plot owners remain eligible onchain.
+- Verified a funded open plot has sufficient Stock Token reserve coverage.
+- Verified all three eligible addresses can buy when funded: three local-fork receipts
+  succeeded and each `ownerOf` matched its buyer.
+- Verified the real dashboard lifecycle on a local fork: count 11 -> 12, selected plot
+  changed to `yours`, Your Land gained the plot, and contract ownership matched.
+- An ineligible control still reverts with `NotEligible()`.
+- Two eligible mainnet wallets currently lack enough ETH for the tested plot; this is a
+  funding prerequisite, not an eligibility or application failure.
