@@ -22,6 +22,10 @@ const UTOPIA_TOKEN = '0x164d9da79722c5294369e79807980e0bff257777';
 // where access requests get sent (form services block crypto solicitation)
 const ACCESS_HANDLE = '@Utopiadet';
 const ACCESS_HANDLE_URL = 'https://x.com/Utopiadet';
+// optional: paste your Google Apps Script web-app URL here to auto-collect
+// requests into a Sheet. Leave '' to use the copy-to-DM flow only. See
+// contracts/../ACCESS_COLLECTION.md for the 4-line script + deploy steps.
+const ACCESS_WEBHOOK = '';
 const CLAIMED_TOPIC = '0x3e356ee9071ea983e847cc7da7b8b224b8f44262f7c9ce77262ea0e854a5442c';
 
 // open-plot tops by base value, cheap to premium; premium gets the gold
@@ -712,9 +716,17 @@ async function requestAccess(btn) {
     held = Number(bal) / 1e18;
   } catch {}
   const line = account + ' · ' + held.toLocaleString() + ' $UTOPIA';
+  // auto-collect to your own endpoint if configured (no-cors: fire-and-forget)
+  if (ACCESS_WEBHOOK) {
+    fetch(ACCESS_WEBHOOK, {
+      method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ wallet: account, utopiaHeld: held, at: Date.now() }),
+    }).catch(() => {});
+  }
   try { await navigator.clipboard.writeText(line); } catch {}
   selEl.innerHTML = '<h3>request access</h3>' +
-    '<p class="quiet-note">copied. send it to <a href="' + ACCESS_HANDLE_URL + '" target="_blank" rel="noopener">' +
+    '<p class="quiet-note">' + (ACCESS_WEBHOOK ? 'sent, and copied. ' : 'copied. ') +
+    'send it to <a href="' + ACCESS_HANDLE_URL + '" target="_blank" rel="noopener">' +
     ACCESS_HANDLE + '</a> to get approved. bigger $utopia holders go first.</p>' +
     '<p class="quiet-note" style="word-break:break-all">' + line + '</p>';
 }
