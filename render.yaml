@@ -4,6 +4,10 @@ services:
     runtime: static
     buildCommand: ""
     staticPublishPath: .
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache, must-revalidate
     routes:
       - type: rewrite
         source: /dashboard
