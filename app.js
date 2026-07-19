@@ -378,6 +378,11 @@ async function refreshEligibility() {
   if (selected >= 0) renderSel();
 }
 
+function orBits(words, out) {
+  for (let i = 0; i < PLOTS; i++) {
+    if ((words[i >> 8] >> BigInt(i & 255)) & 1n) out[i] = 1;
+  }
+}
 function unpackBits(words, out) {
   let count = 0;
   for (let i = 0; i < PLOTS; i++) {
@@ -399,7 +404,15 @@ async function refreshOwnership() {
       : Promise.resolve(WAD),
   ]);
   multiplier = mult;
-  ownedCount = unpackBits(bm, owned);
+  unpackBits(bm, owned);
+  // merge in plots bought on earlier contracts so nobody's purchase disappears
+  for (const legacy of NET.legacyLands || []) {
+    try {
+      const lbm = await pub.readContract({ address: legacy, abi, functionName: 'ownershipBitmap' });
+      orBits(lbm, owned);
+    } catch {}
+  }
+  ownedCount = owned.reduce((a, b) => a + b, 0);
   if (account) {
     const [my, bal] = await Promise.all([
       pub.readContract({ address: LAND, abi, functionName: 'plotsOf', args: [account] }),
@@ -408,6 +421,13 @@ async function refreshOwnership() {
         : pub.readContract({ address: UTOP, abi: erc20Abi, functionName: 'balanceOf', args: [account] }),
     ]);
     unpackBits(my, mine);
+    // your plots on earlier contracts count as yours too
+    for (const legacy of NET.legacyLands || []) {
+      try {
+        const lmy = await pub.readContract({ address: legacy, abi, functionName: 'plotsOf', args: [account] });
+        orBits(lmy, mine);
+      } catch {}
+    }
     paymentBalance = bal;
   } else {
     mine.fill(0);

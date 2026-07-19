@@ -14,7 +14,10 @@ const active = {
   landVersion: 4,
   // 5 = district mode (stock by region); 0..4 = every plot pays that one stock
   // (NVDA = 2). Must match the deployed contract's rewardMode.
-  rewardMode: 2,
+  rewardMode: 5, // must match the deployed contract (0xb93Ee2B0 is district mode)
+  // earlier contracts people bought on; their plots are shown as owned so no
+  // buyer's purchase disappears from the map
+  legacyLands: ['0x7E062901CAdAF1692b9908b0bfE360fA94900E8E'],
   payment: 'native',
   requiresEligibility: true,
   eligibilityUrl: '',

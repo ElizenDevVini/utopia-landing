@@ -143,6 +143,11 @@ function loadStatic() {
   }
 }
 
+function orBits(words, out) {
+  for (let i = 0; i < PLOTS; i++) {
+    if ((words[i >> 8] >> BigInt(i & 255)) & 1n) out[i] = 1;
+  }
+}
 function unpackBits(words, out) {
   let count = 0;
   for (let i = 0; i < PLOTS; i++) {
