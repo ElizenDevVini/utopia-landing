@@ -6,20 +6,17 @@ Static landing page and dashboard for Utopia land on Robinhood Chain.
 
 The checked-in default is the Robinhood Chain mainnet profile. It remains
 fail-closed until the verified deployment, production RPC, eligibility flow, and
-reserve preflight are configured. Testnet is available only as an explicit
-preview (`?net=testnet` or `?net=testnet-v2`). Chain IDs, RPCs, explorers, and
+reserve preflight are configured. Chain IDs, RPCs, explorers, and
 contract addresses live in `config.js`; do not duplicate them in HTML or page
 modules.
 
-Preview the production gate or explicit testnets with:
+Open the production gate with:
 
 ```text
 http://localhost:4173/
 http://localhost:4173/app.html
 http://localhost:4173/?net=mainnet
 http://localhost:4173/app.html?net=mainnet
-http://localhost:4173/?net=testnet-v2
-http://localhost:4173/app.html?net=testnet-v2
 ```
 
 A production host can inject the release values before the module scripts:
