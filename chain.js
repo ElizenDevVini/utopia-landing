@@ -2,8 +2,8 @@
 
 // vendored tree-shaken viem 2.21.19 bundle; the site itself has no build step
 import {
-  createPublicClient, http, defineChain, parseAbi,
-} from './vendor/viem.js';
+  createPublicClient, http, defineChain, parseAbi, keccak256, encodePacked,
+} from './vendor/viem.js?v=2';
 
 import { addressUrl, MULTICALL3, NET, withNetwork } from './config.js';
 
@@ -113,18 +113,23 @@ function schedule() {
 
 // ---- chain reads ----
 
-async function loadStatic() {
-  if (!NET.ready) return;
-  const packed = await pub.readContract({ address: LAND, abi, functionName: 'plotsPacked' });
+// deterministic plot attributes, computed locally (matches the contract) so
+// the map loads instantly without a heavy plotsPacked RPC call
+function h256(salt, id) {
+  return BigInt(keccak256(encodePacked(['string', 'uint256'], [salt, BigInt(id)])));
+}
+function loadStatic() {
   prices = new Array(PLOTS);
   apys = new Uint16Array(PLOTS);
   tokIdx = new Uint8Array(PLOTS);
-  const M128 = (1n << 128n) - 1n;
-  for (let i = 0; i < PLOTS; i++) {
-    const v = packed[i];
-    prices[i] = v & M128;
-    apys[i] = Number((v >> 128n) & 0xffffn);
-    tokIdx[i] = Number(v >> 144n);
+  for (let id = 0; id < PLOTS; id++) {
+    const x = id % SIDE, y = (id / SIDE) | 0;
+    const base = 500000000000000n + (h256('utopia/price/v1', id) % 2000000000000000n);
+    const premium = (2500000000000000n * 300n) / (300n + BigInt(x * x + y * y));
+    const raw = base + premium;
+    prices[id] = raw - (raw % 10000000000000n);
+    apys[id] = Number(310n + (h256('utopia/apy/v1', id) % 271n));
+    tokIdx[id] = Number(h256('utopia/token/v1', id) % 5n);
   }
 }
 
@@ -196,14 +201,30 @@ function panelFor(id) {
   }
 }
 
+function inTopFace(mx, my, x, y, z) {
+  const cx = view.ox + (x - y) * (view.tw / 2);
+  const cy = view.oy + (x + y + 1) * (view.th / 2) - z * view.th;
+  return Math.abs(mx - cx) / (view.tw / 2) + Math.abs(my - cy) / (view.th / 2) <= 1;
+}
+
 function pick(e) {
   const rect = canvas.getBoundingClientRect();
-  const a = (e.clientX - rect.left - view.ox) / (view.tw / 2);
-  const b = (e.clientY - rect.top - view.oy + 0.5 * view.th) / (view.th / 2);
-  const gx = Math.floor((a + b) / 2);
-  const gy = Math.floor((b - a) / 2);
-  if (gx < 0 || gx >= SIDE || gy < 0 || gy >= SIDE) return -1;
-  return gy * SIDE + gx;
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const a = (mx - view.ox) / (view.tw / 2);
+  const b = (my - view.oy) / (view.th / 2);
+  const bx = Math.floor((a + b) / 2), by = Math.floor((b - a) / 2);
+  let best = -1, bestScore = -1;
+  for (let dy = -1; dy <= 4; dy++) {
+    for (let dx = -1; dx <= 4; dx++) {
+      const x = bx + dx, y = by + dy;
+      if (x < 0 || x >= SIDE || y < 0 || y >= SIDE) continue;
+      const id = y * SIDE + x;
+      if (!inTopFace(mx, my, x, y, zOf(id))) continue;
+      const score = (x + y) * 10 + zOf(id);
+      if (score > bestScore) { bestScore = score; best = id; }
+    }
+  }
+  return best;
 }
 
 canvas.addEventListener('click', e => {
@@ -242,7 +263,7 @@ new IntersectionObserver(entries => {
   clearInterval(pollTimer);
   if (vis && NET.ready) {
     if (!loaded) load(); else refreshOwnership().catch(() => {});
-    pollTimer = setInterval(() => refreshOwnership().catch(() => {}), 15000);
+    pollTimer = setInterval(() => refreshOwnership().catch(() => {}), 10000);
   }
 }).observe(canvas);
 

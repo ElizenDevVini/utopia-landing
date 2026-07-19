@@ -3,8 +3,8 @@
 
 import {
   createPublicClient, createWalletClient, custom, http,
-  defineChain, parseAbi,
-} from './vendor/viem.js';
+  defineChain, parseAbi, keccak256, encodePacked,
+} from './vendor/viem.js?v=2';
 import { BG, TOPS, HOVER_TOP, CLAIMED_TOP, IN, hash, prism, makeTip } from './iso.js';
 import { addressUrl, MULTICALL3, NET, withNetwork } from './config.js';
 
@@ -189,21 +189,27 @@ function schedule() {
 
 // ---- chain reads ----
 
-async function loadStatic() {
-  if (!NET.ready) return;
-  const packed = await pub.readContract({ address: LAND, abi, functionName: 'plotsPacked' });
+// plot attributes are deterministic (keccak of the id) and identical to the
+// contract's priceOf/apyBpsOf/tokenIndexOf — compute them locally so the map
+// loads instantly without a heavy plotsPacked RPC call
+function h256(salt, id) {
+  return BigInt(keccak256(encodePacked(['string', 'uint256'], [salt, BigInt(id)])));
+}
+function loadStatic() {
   basePrices = new Array(PLOTS);
   apys = new Uint16Array(PLOTS);
   tokIdx = new Uint8Array(PLOTS);
   tiers = new Uint8Array(PLOTS);
-  const M128 = (1n << 128n) - 1n;
-  for (let i = 0; i < PLOTS; i++) {
-    const v = packed[i];
-    basePrices[i] = v & M128;
-    apys[i] = Number((v >> 128n) & 0xffffn);
-    tokIdx[i] = Number(v >> 144n);
-    tiers[i] = TIERS.findIndex(t => basePrices[i] < t);
-    if (tiers[i] === 255) tiers[i] = 3; // findIndex returned -1: top tier
+  for (let id = 0; id < PLOTS; id++) {
+    const x = id % SIDE, y = (id / SIDE) | 0;
+    const base = 500000000000000n + (h256('utopia/price/v1', id) % 2000000000000000n);
+    const premium = (2500000000000000n * 300n) / (300n + BigInt(x * x + y * y));
+    const raw = base + premium;
+    basePrices[id] = raw - (raw % 10000000000000n);
+    apys[id] = Number(310n + (h256('utopia/apy/v1', id) % 271n));
+    tokIdx[id] = Number(h256('utopia/token/v1', id) % 5n);
+    let t = TIERS.findIndex(v => basePrices[id] < v);
+    tiers[id] = t < 0 ? 3 : t;
   }
 }
 
@@ -337,15 +343,19 @@ async function load() {
   if (!NET.ready) return;
   try {
     if (!basePrices) await loadStatic();
-    if (!rates) await loadRates().catch(() => {});
-    await refreshTreasury();
-    await Promise.all([refreshOwnership(), refreshEligibility()]);
-    await refreshClaimables();
-    loaded = true;
+    await refreshOwnership();
+    loaded = true; // map is interactive as soon as prices + ownership are in
+    schedule();
   } catch (e) {
     statusEl.textContent = 'the chain is not answering right now. retrying shortly.';
-    setTimeout(load, 30000);
+    setTimeout(load, 15000);
+    return;
   }
+  // best-effort extras — a flaky RPC on these must never block clicking
+  if (!rates) loadRates().catch(() => {});
+  refreshTreasury().catch(() => {});
+  refreshEligibility().catch(() => {});
+  refreshClaimables().catch(() => {});
 }
 
 // ---- wallet (EIP-6963 multi-wallet discovery: MetaMask, Phantom, Rabby, …) ----
@@ -859,14 +869,33 @@ marketEl.addEventListener('click', e => {
 
 // ---- map interactions ----
 
+// is (mx,my) inside the drawn top face of tile (x,y) at height z
+function inTopFace(mx, my, x, y, z) {
+  const cx = view.ox + (x - y) * (view.tw / 2);
+  const cy = view.oy + (x + y + 1) * (view.th / 2) - z * view.th;
+  return Math.abs(mx - cx) / (view.tw / 2) + Math.abs(my - cy) / (view.th / 2) <= 1;
+}
+
 function pick(e) {
   const rect = canvas.getBoundingClientRect();
-  const a = (e.clientX - rect.left - view.ox) / (view.tw / 2);
-  const b = (e.clientY - rect.top - view.oy + 0.5 * view.th) / (view.th / 2);
-  const gx = Math.floor((a + b) / 2);
-  const gy = Math.floor((b - a) / 2);
-  if (gx < 0 || gx >= SIDE || gy < 0 || gy >= SIDE) return -1;
-  return gy * SIDE + gx;
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  // ground-plane guess, then search nearby for the frontmost raised block
+  // whose top face actually sits under the cursor
+  const a = (mx - view.ox) / (view.tw / 2);
+  const b = (my - view.oy) / (view.th / 2);
+  const bx = Math.floor((a + b) / 2), by = Math.floor((b - a) / 2);
+  let best = -1, bestScore = -1;
+  for (let dy = -1; dy <= 4; dy++) {
+    for (let dx = -1; dx <= 4; dx++) {
+      const x = bx + dx, y = by + dy;
+      if (x < 0 || x >= SIDE || y < 0 || y >= SIDE) continue;
+      const id = y * SIDE + x;
+      if (!inTopFace(mx, my, x, y, zOf(id))) continue;
+      const score = (x + y) * 10 + zOf(id); // frontmost (drawn last, on top) wins
+      if (score > bestScore) { bestScore = score; best = id; }
+    }
+  }
+  return best;
 }
 
 canvas.addEventListener('click', e => {
@@ -900,7 +929,7 @@ if (fine) {
 
 // ---- lifecycle ----
 
-setInterval(() => { if (loaded && !document.hidden) refreshOwnership().catch(() => {}); }, 15000);
+setInterval(() => { if (loaded && !document.hidden) refreshOwnership().catch(() => {}); }, 10000);
 setInterval(() => { if (loaded && !document.hidden && account) refreshClaimables().catch(() => {}); }, 10000);
 setInterval(() => { if (loaded && !document.hidden) refreshTreasury().catch(() => {}); }, 60000);
 
