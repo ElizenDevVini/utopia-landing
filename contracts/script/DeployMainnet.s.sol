@@ -45,12 +45,20 @@ contract DeployMainnet is Script {
             );
         }
 
+        // reuse an existing eligibility registry (keeps approved wallets) when
+        // UTOPIA_ELIGIBILITY is set; otherwise deploy a fresh one
+        address existingRegistry = vm.envOr("UTOPIA_ELIGIBILITY", address(0));
+        if (existingRegistry != address(0)) {
+            require(existingRegistry.code.length > 0, "eligibility registry has no code");
+        }
+
         vm.startBroadcast();
-        UtopiaEligibility registry = new UtopiaEligibility(owner);
+        IUtopiaEligibility registry = existingRegistry == address(0)
+            ? IUtopiaEligibility(address(new UtopiaEligibility(owner)))
+            : IUtopiaEligibility(existingRegistry);
         // rewardEndRaw was checked against type(uint64).max above.
         // forge-lint: disable-next-line(unsafe-typecast)
-        UtopiaLandMainnet land =
-            new UtopiaLandMainnet(toks, rates, IUtopiaEligibility(address(registry)), uint64(rewardEndRaw), owner);
+        UtopiaLandMainnet land = new UtopiaLandMainnet(toks, rates, registry, uint64(rewardEndRaw), owner);
         vm.stopBroadcast();
 
         console.log("UtopiaEligibility:", address(registry));
