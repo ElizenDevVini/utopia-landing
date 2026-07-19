@@ -4,7 +4,7 @@ export const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
 export const NETWORKS = {
   mainnet: {
     key: 'mainnet',
-    label: 'robinhood chain',
+    label: 'robinhood chain mainnet',
     chainId: 4663,
     rpc: 'https://rpc.mainnet.chain.robinhood.com',
     explorer: 'https://robinhoodchain.blockscout.com',

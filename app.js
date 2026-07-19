@@ -32,7 +32,6 @@ const chain = defineChain({
   rpcUrls: { default: { http: [NET.rpc] } },
   blockExplorers: { default: { name: 'Blockscout', url: EXPLORER } },
   contracts: { multicall3: { address: MULTICALL3 } },
-  testnet: NET.key !== 'mainnet',
 });
 
 const abi = parseAbi([
