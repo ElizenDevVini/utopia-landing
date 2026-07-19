@@ -1,5 +1,5 @@
-// Network profiles. Default is testnet; append ?net=mainnet to preview the
-// deliberately disabled mainnet state. A host may set
+// Network profiles. Production defaults to mainnet; use ?net=testnet or
+// ?net=testnet-v2 only for an explicit test preview. A host may set
 // window.UTOPIA_RUNTIME = { network, rpcUrl, landAddress, eligibilityUrl }
 // before modules load. Mainnet fails closed without every production value.
 
@@ -63,7 +63,7 @@ export const NETWORKS = {
 
 const runtime = globalThis.UTOPIA_RUNTIME || {};
 const pick = runtime.network || new URLSearchParams(location.search).get('net');
-const selected = NETWORKS[pick] || NETWORKS.testnet;
+const selected = NETWORKS[pick] || NETWORKS.mainnet;
 const rpc = runtime.rpcUrl || selected.rpc;
 const land = runtime.landAddress || selected.land;
 const eligibilityUrl = runtime.eligibilityUrl || selected.eligibilityUrl;

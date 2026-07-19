@@ -4,15 +4,18 @@ Static landing page and dashboard for Utopia land on Robinhood Chain.
 
 ## Networks
 
-The checked-in default is the ETH-priced V1 testnet deployment. The dashboard
-reads its five reward reserves live and exposes when claims may accrue as debt
-without paying out. The UTOP-priced V2 remains available as an explicit
-preview. Chain IDs, RPCs, explorers, and contract addresses live in `config.js`;
-do not duplicate them in HTML or page modules.
+The checked-in default is the Robinhood Chain mainnet profile. It remains
+fail-closed until the verified deployment, production RPC, eligibility flow, and
+reserve preflight are configured. Testnet is available only as an explicit
+preview (`?net=testnet` or `?net=testnet-v2`). Chain IDs, RPCs, explorers, and
+contract addresses live in `config.js`; do not duplicate them in HTML or page
+modules.
 
-Preview the intentionally disabled mainnet state with:
+Preview the production gate or explicit testnets with:
 
 ```text
+http://localhost:4173/
+http://localhost:4173/app.html
 http://localhost:4173/?net=mainnet
 http://localhost:4173/app.html?net=mainnet
 http://localhost:4173/?net=testnet-v2
