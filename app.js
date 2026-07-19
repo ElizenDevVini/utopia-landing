@@ -39,6 +39,20 @@ const DISTRICTS = [
   { name: 'the marketplace', stock: 'AMZN', color: '#c3dcf3' },
 ];
 const DISTRICT_CENTROIDS = [[15.5, 15.5], [7.5, 7.5], [23.5, 7.5], [7.5, 23.5], [23.5, 23.5]];
+
+// preview skyline: sold plots shown as named skyscrapers (visual demo)
+const DEMO_SKYLINE = true;
+const DEMO_PLOTS = [
+  { x: 16, y: 16, name: 'the spire', h: 4.8 },
+  { x: 14, y: 18, name: 'obsidian', h: 3.9 },
+  { x: 18, y: 14, name: 'vertex', h: 3.3 },
+  { x: 10, y: 6, name: 'atlas', h: 3.4 },
+  { x: 24, y: 8, name: 'meridian', h: 3.7 },
+  { x: 6, y: 21, name: 'nimbus', h: 2.9 },
+  { x: 23, y: 24, name: 'bazaar', h: 3.2 },
+  { x: 26, y: 20, name: 'onyx', h: 2.7 },
+];
+const demoById = new Map(DEMO_PLOTS.map(p => [p.y * 32 + p.x, p]));
 function districtOf(x, y) {
   const dx = x - 15.5, dy = y - 15.5;
   if (dx * dx + dy * dy < 64) return 0; // center circle → NVDA
@@ -211,9 +225,11 @@ function render() {
     for (let x = Math.max(0, s - SIDE + 1); x <= Math.min(SIDE - 1, s); x++) {
       const y = s - x;
       const id = y * SIDE + x;
-      let z = zOf(id);
+      const demo = DEMO_SKYLINE ? demoById.get(id) : null;
+      let z = demo ? demo.h : zOf(id);
       let top;
-      if (owned[id]) top = mine[id] ? MINE_TOP : CLAIMED_TOP;
+      if (demo) top = MINE_TOP;
+      else if (owned[id]) top = mine[id] ? MINE_TOP : CLAIMED_TOP;
       else if (DISTRICTS_ON) top = DISTRICTS[districtOf(x, y)].color;
       else top = tiers ? TIER_TOPS[tiers[id]] : TOPS[(hash(x, y) * 997) % 3 | 0];
       if (id === selected) z += 0.35;
@@ -222,6 +238,23 @@ function render() {
     }
   }
   if (DISTRICTS_ON) drawDistrictLabels();
+  if (DEMO_SKYLINE) drawSkylineLabels();
+}
+
+function drawSkylineLabels() {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = "600 " + Math.max(9, view.tw * 0.5) + "px 'Archivo', sans-serif";
+  for (const p of DEMO_PLOTS) {
+    const sx = view.ox + (p.x + 0.5 - (p.y + 0.5)) * (view.tw / 2);
+    const sy = view.oy + (p.x + 0.5 + p.y + 0.5) * (view.th / 2) - (p.h + 0.7) * view.th;
+    ctx.fillStyle = 'rgba(12,35,64,0.9)';
+    ctx.fillText(p.name, sx + 1, sy + 1);
+    ctx.fillStyle = '#e9f2fb';
+    ctx.fillText(p.name, sx, sy);
+  }
+  ctx.restore();
 }
 
 function drawDistrictLabels() {
