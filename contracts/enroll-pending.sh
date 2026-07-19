@@ -17,14 +17,22 @@ all=$(curl -sL "https://docs.google.com/spreadsheets/d/$SHEET/export?format=csv"
 
 pending=()
 for a in $all; do
-  e=$(cast call "$REG" 'isEligible(address)(bool)' "$a" --rpc-url "$RPC" 2>/dev/null | head -1)
+  # the public RPC rate-limits bursts; retry a few times before trusting a read
+  e=""
+  for _ in 1 2 3 4; do
+    e=$(cast call "$REG" 'isEligible(address)(bool)' "$a" --rpc-url "$RPC" 2>/dev/null | head -1 || true)
+    [ "$e" = "true" ] || [ "$e" = "false" ] && break
+    perl -e 'select(undef,undef,undef,1.5)'
+  done
   if [ "$e" = "true" ]; then
     echo "  eligible already: $a" >&2
-  else
+  elif [ "$e" = "false" ]; then
     echo "  PENDING:          $a" >&2
     pending+=("$a")
+  else
+    echo "  READ FAILED (skipping, rerun): $a" >&2
   fi
-  perl -e 'select(undef,undef,undef,0.6)'   # space calls so the RPC doesn't rate-limit
+  perl -e 'select(undef,undef,undef,1.2)'   # space calls so the RPC doesn't rate-limit
 done
 
 n=${#pending[@]}
