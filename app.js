@@ -17,6 +17,10 @@ const SYMBOLS = NET.symbols;
 const MINE_TOP = '#ffffff';
 const WAD = 10n ** 18n;
 const MAX_CLAIM_BATCH = 64;
+// utopia token — used to rank access requests by holdings (biggest holders first)
+const UTOPIA_TOKEN = '0x164d9da79722c5294369e79807980e0bff257777';
+// REPLACE with your Formspree form endpoint (formspree.io → new form → copy URL)
+const FORMSPREE_ENDPOINT = 'https://formspree.io/f/REPLACE_ME';
 const CLAIMED_TOPIC = '0x3e356ee9071ea983e847cc7da7b8b224b8f44262f7c9ce77262ea0e854a5442c';
 
 // open-plot tops by base value, cheap to premium; premium gets the gold
@@ -519,11 +523,10 @@ function renderSel() {
   if (!owned[id]) {
     const blocked = account && NET.requiresEligibility && accountEligible !== true;
     const label = blocked
-      ? 'eligibility required to buy'
+      ? 'request access to buy'
       : account ? 'buy for ' + fmtPrice(priceNow(id)) : 'connect wallet to buy';
     selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + '</h3>' + rows +
-      '<button id="act" data-act="buy"' + (blocked ? ' disabled' : '') + '>' + label + '</button>' +
-      (blocked ? '<p><a href="' + NET.eligibilityUrl + '" target="_blank" rel="noopener">check eligibility</a></p>' : '') +
+      '<button id="' + (blocked ? 'reqaccess' : 'act') + '" data-act="buy">' + label + '</button>' +
       '<p class="txstate"></p>';
   } else if (mine[id]) {
     const c = claimables.get(id);
@@ -685,9 +688,43 @@ async function doTx(act, ids, trigger) {
 }
 
 selEl.addEventListener('click', e => {
+  const req = e.target.closest('#reqaccess');
+  if (req) { requestAccess(req); return; }
   const btn = e.target.closest('#act');
   if (btn && selected >= 0) doTx(btn.dataset.act, [selected], btn);
 });
+
+// send an access request to Formspree, tagged with the wallet's $utopia holdings
+async function requestAccess(btn) {
+  if (!account) {
+    try { await connect({ prompt: true }); } catch {}
+    if (!account) return;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = 'sending…'; }
+  try {
+    let held = 0;
+    try {
+      const bal = await pub.readContract({ address: UTOPIA_TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [account] });
+      held = Number(bal) / 1e18;
+    } catch {}
+    const res = await fetch(FORMSPREE_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        wallet: account,
+        utopiaHeld: held,
+        _subject: 'utopia access · ' + held.toLocaleString() + ' $UTOPIA · ' + account,
+      }),
+    });
+    txState(res.ok
+      ? 'request sent. approvals go out in batches, biggest $utopia holders first.'
+      : 'could not send. try again in a moment.', selEl);
+  } catch {
+    txState('could not send. try again in a moment.', selEl);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
 
 // ---- holdings ----
 
