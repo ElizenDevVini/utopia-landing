@@ -819,11 +819,20 @@ async function doTx(act, ids, trigger) {
     txPending(hash_, root);
     const receipt = await pub.waitForTransactionReceipt({ hash: hash_ });
     requireSuccessfulReceipt(receipt, act);
+    // the receipt already proves the buy succeeded — mark the plot owned now so
+    // it renders as the buyer's tower instantly, even if the follow-up read lags
+    if (act === 'buy') {
+      owned[ids[0]] = 1;
+      mine[ids[0]] = 1;
+      ownedCount = owned.reduce((a, b) => a + b, 0);
+    }
     await refreshTreasury();
     await Promise.all([refreshOwnership(), refreshEligibility()]);
+    // re-assert after refresh in case the node's plotsOf read hadn't caught up
+    if (act === 'buy') { owned[ids[0]] = 1; mine[ids[0]] = 1; }
     await refreshClaimables();
-    if (act === 'buy' && !mine[ids[0]]) throw new Error('purchase confirmed but ownership did not refresh');
     renderSel();
+    schedule();
     root = txRoot(act);
     const success = act === 'buy'
       ? 'yours. the block just rose.'
