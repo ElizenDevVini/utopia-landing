@@ -158,7 +158,11 @@ function frame(now) {
     }
     if (z < ZMIN) z = ZMIN;
     const isHover = hover.on && x === hover.gx && y === hover.gy;
-    prism(ctx, view, x + IN, y + IN, x + 1 - IN, y + 1 - IN, z, isHover ? HOVER_TOP : TOPS[tint[i]]);
+    // a scattered few tiles read as owned buildings: taller, tinted blue
+    const isOwned = hash(x * 13 + 1, y * 7 + 5) > 0.9;
+    let top = isHover ? HOVER_TOP : isOwned ? CLAIMED_TOP : TOPS[tint[i]];
+    if (isOwned && !isHover) z += 0.9 + hash(x + 3, y + 9) * 1.2;
+    prism(ctx, view, x + IN, y + IN, x + 1 - IN, y + 1 - IN, z, top);
   }
 }
 
