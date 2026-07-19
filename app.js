@@ -28,6 +28,26 @@ const ACCESS_HANDLE_URL = 'https://x.com/Utopiadet';
 const ACCESS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbxCTc6Njp2nRwfXo2t5SbH0jE-Ft9sV0LuQpCG-04ByPlXj1KCWneCp3BJtjjlxXHQP_w/exec';
 const CLAIMED_TOPIC = '0x3e356ee9071ea983e847cc7da7b8b224b8f44262f7c9ce77262ea0e854a5442c';
 
+// districts: a center core + four quarters, each its own stock. Visual preview
+// over the current contract; a redeploy makes the reward token match the region.
+const DISTRICTS_ON = true;
+const DISTRICTS = [
+  { name: 'silicon heights', stock: 'NVDA', color: '#e3c67b' }, // center core
+  { name: 'motorworks', stock: 'TSLA', color: '#6f9fd0' },
+  { name: 'cupertino row', stock: 'AAPL', color: '#9ec4e8' },
+  { name: 'the cloudworks', stock: 'MSFT', color: '#4d7db0' },
+  { name: 'the marketplace', stock: 'AMZN', color: '#c3dcf3' },
+];
+const DISTRICT_CENTROIDS = [[15.5, 15.5], [7.5, 7.5], [23.5, 7.5], [7.5, 23.5], [23.5, 23.5]];
+function districtOf(x, y) {
+  const dx = x - 15.5, dy = y - 15.5;
+  if (dx * dx + dy * dy < 64) return 0; // center circle → NVDA
+  if (dx < 0 && dy < 0) return 1;
+  if (dx >= 0 && dy < 0) return 2;
+  if (dx < 0 && dy >= 0) return 3;
+  return 4;
+}
+
 // open-plot tops by base value, cheap to premium; premium gets the gold
 const TIER_TOPS = ['#dbe7f5', '#b9d3ec', '#8fb9e4', '#e3c67b'];
 const TIERS = NET.payment === 'native'
@@ -72,7 +92,7 @@ const erc20Abi = parseAbi([
 const pub = createPublicClient({
   chain,
   batch: { multicall: { wait: 16, batchSize: 4096 } },
-  transport: http(NET.rpc),
+  transport: http(NET.rpc, { retryCount: 1, timeout: 7000 }),
 });
 
 const canvas = document.getElementById('land');
@@ -194,12 +214,31 @@ function render() {
       let z = zOf(id);
       let top;
       if (owned[id]) top = mine[id] ? MINE_TOP : CLAIMED_TOP;
+      else if (DISTRICTS_ON) top = DISTRICTS[districtOf(x, y)].color;
       else top = tiers ? TIER_TOPS[tiers[id]] : TOPS[(hash(x, y) * 997) % 3 | 0];
       if (id === selected) z += 0.35;
       if (id === hoverId && id !== selected) top = HOVER_TOP;
       prism(ctx, view, x + IN, y + IN, x + 1 - IN, y + 1 - IN, z, top);
     }
   }
+  if (DISTRICTS_ON) drawDistrictLabels();
+}
+
+function drawDistrictLabels() {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = "600 " + Math.max(11, view.tw * 0.62) + "px 'Instrument Serif', serif";
+  for (let i = 0; i < DISTRICTS.length; i++) {
+    const [cx, cy] = DISTRICT_CENTROIDS[i];
+    const sx = view.ox + (cx - cy) * (view.tw / 2);
+    const sy = view.oy + (cx + cy) * (view.th / 2) - 1.6 * view.th;
+    ctx.fillStyle = 'rgba(12,35,64,0.85)';
+    ctx.fillText(DISTRICTS[i].name, sx + 1, sy + 1);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(DISTRICTS[i].name, sx, sy);
+  }
+  ctx.restore();
 }
 
 let raf = 0;

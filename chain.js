@@ -33,7 +33,7 @@ const abi = parseAbi([
 const pub = createPublicClient({
   chain,
   batch: { multicall: { wait: 16, batchSize: 4096 } },
-  transport: http(NET.rpc),
+  transport: http(NET.rpc, { retryCount: 1, timeout: 7000 }),
 });
 
 const U = window.utopia;
