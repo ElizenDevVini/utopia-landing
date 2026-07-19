@@ -679,7 +679,7 @@ function renderSel() {
       '<div class="row"><span class="k">claimable</span><span class="v">' + (c != null ? fmtTok(c, tokIdx[id]) : '…') + '</span></div>' +
       '<button id="act" data-act="claim"' + (blocked ? ' disabled' : '') + '>' +
       (blocked ? 'eligibility required to claim' : 'claim rewards') + '</button>' +
-      (blocked ? '<p><a href="' + NET.eligibilityUrl + '" target="_blank" rel="noopener">renew eligibility</a></p>' : '') +
+      (blocked ? '<p><a href="#" id="reqaccess">request access</a></p>' : '') +
       '<p class="txstate"></p>';
   } else {
     selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · owned</h3>' + rows +
@@ -827,13 +827,21 @@ async function doTx(act, ids, trigger) {
   } catch (err) {
     if (btn) btn.disabled = false;
     const m = (err?.shortMessage || err?.message || 'failed').split('\n')[0];
+    // a NotEligible revert means the wallet isn't enrolled; route to the access
+    // request instead of leaving a raw revert string
+    if (/eligib|NotEligible|not eligible/i.test(m)) {
+      accountEligible = false;
+      renderSel();
+      txState('wallet not approved yet. request access below.', root);
+      return;
+    }
     txState(/rejected|denied/i.test(m) ? 'cancelled.' : m.toLowerCase().slice(0, 240), root);
   }
 }
 
 selEl.addEventListener('click', e => {
   const req = e.target.closest('#reqaccess');
-  if (req) { requestAccess(req); return; }
+  if (req) { e.preventDefault(); requestAccess(req); return; }
   const btn = e.target.closest('#act');
   if (btn && selected >= 0) doTx(btn.dataset.act, [selected], btn);
 });
@@ -891,7 +899,7 @@ function renderHoldings() {
   const eligibility = NET.requiresEligibility
     ? '<div class="row"><span class="k">eligibility</span><span class="v">' +
       (accountEligible === true ? 'active' : accountEligible === false
-        ? '<a href="' + NET.eligibilityUrl + '" target="_blank" rel="noopener">required</a>' : 'checking…') +
+        ? '<a href="#" id="reqaccess">required · request access</a>' : 'checking…') +
       '</span></div>'
     : '';
   const portfolio = walletStocksHtml();
@@ -919,6 +927,8 @@ function renderHoldings() {
 }
 
 holdingsEl.addEventListener('click', e => {
+  const req = e.target.closest('#reqaccess');
+  if (req) { e.preventDefault(); requestAccess(req); return; }
   const link = e.target.closest('.plotlink');
   if (link) {
     selected = Number(link.dataset.id);
