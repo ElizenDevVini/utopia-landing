@@ -341,17 +341,11 @@ async function loadRates() {
 
 async function load() {
   if (!NET.ready) return;
-  try {
-    if (!basePrices) await loadStatic();
-    await refreshOwnership();
-    loaded = true; // map is interactive as soon as prices + ownership are in
-    schedule();
-  } catch (e) {
-    statusEl.textContent = 'the chain is not answering right now. retrying shortly.';
-    setTimeout(load, 15000);
-    return;
-  }
-  // best-effort extras — a flaky RPC on these must never block clicking
+  if (!basePrices) loadStatic(); // local + instant, no RPC
+  loaded = true; // map is interactive immediately; ownership paints in when it lands
+  schedule();
+  // ownership is a tiny call, but the public RPC can be slow — retry, never block
+  refreshOwnership().catch(() => setTimeout(() => refreshOwnership().catch(() => {}), 8000));
   if (!rates) loadRates().catch(() => {});
   refreshTreasury().catch(() => {});
   refreshEligibility().catch(() => {});

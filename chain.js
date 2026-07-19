@@ -170,14 +170,10 @@ async function refreshOwnership() {
 
 async function load() {
   if (!NET.ready) return;
-  try {
-    if (!prices) await loadStatic();
-    await refreshOwnership();
-    loaded = true;
-  } catch (e) {
-    statusEl.textContent = 'the chain is not answering right now. retrying shortly.';
-    setTimeout(load, 30000);
-  }
+  if (!prices) loadStatic(); // local + instant, no RPC
+  loaded = true;
+  schedule();
+  refreshOwnership().catch(() => setTimeout(() => refreshOwnership().catch(() => {}), 8000));
 }
 
 // ---- panel / interactions ----
