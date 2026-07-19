@@ -44,8 +44,12 @@ contract UtopiaLandCityTest is Test {
             stocks[i] = new MockStock();
             toks[i] = IERC20(address(stocks[i]));
         }
-        land = new UtopiaLandCity(toks, rates, IUtopiaEligibility(address(reg)), uint64(block.timestamp + 90 days), address(this), 5);
-        for (uint256 i = 0; i < 5; i++) stocks[i].mint(address(land), 100e18);
+        land = new UtopiaLandCity(
+            toks, rates, IUtopiaEligibility(address(reg)), uint64(block.timestamp + 90 days), address(this), 5
+        );
+        for (uint256 i = 0; i < 5; i++) {
+            stocks[i].mint(address(land), 100e18);
+        }
     }
 
     // ---- districts ----
@@ -70,7 +74,9 @@ contract UtopiaLandCityTest is Test {
             used[land.tokenIndexOf(id)] = true;
             if (land.tokenIndexOf(id) == 2) centerCount++;
         }
-        for (uint256 i = 0; i < 5; i++) assertTrue(used[i]);
+        for (uint256 i = 0; i < 5; i++) {
+            assertTrue(used[i]);
+        }
         // center circle is a meaningful, bounded region (not the whole map)
         assertGt(centerCount, 100);
         assertLt(centerCount, 400);

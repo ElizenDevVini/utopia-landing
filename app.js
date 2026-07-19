@@ -679,7 +679,9 @@ function renderSel() {
     }
   } else if (mine[id]) {
     const c = claimables.get(id);
-    const blocked = NET.requiresEligibility && accountEligible !== true;
+    // codex: unknown means the public RPC read failed; contract simulation is
+    // authoritative, so only a confirmed false eligibility result blocks UI.
+    const blocked = NET.requiresEligibility && accountEligible === false;
     selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · yours</h3>' + rows +
       '<div class="row"><span class="k">claimable</span><span class="v">' + (c != null ? fmtTok(c, tokIdx[id]) : '…') + '</span></div>' +
       '<button id="act" data-act="claim"' + (blocked ? ' disabled' : '') + '>' +
@@ -759,7 +761,7 @@ async function doTx(act, ids, trigger) {
     const wallet = await connect({ prompt: !account });
     if (!wallet) return;
     root = txRoot(act);
-    if (NET.requiresEligibility && accountEligible !== true && act !== 'faucet') {
+    if (NET.requiresEligibility && accountEligible === false && act !== 'faucet') {
       txState('this wallet is not currently eligible.', root);
       return;
     }
@@ -933,7 +935,7 @@ function renderHoldings() {
     return '<li><button class="plotlink" data-id="' + id + '">plot ' + id + '</button>' +
       '<span class="amt">' + (c != null ? fmtTok(c, tokIdx[id]) : '…') + '</span></li>';
   }).join('');
-  const claimBlocked = NET.requiresEligibility && accountEligible !== true;
+  const claimBlocked = NET.requiresEligibility && accountEligible === false;
   holdingsEl.innerHTML = bal + eligibility + '<ul class="holdlist">' + items + '</ul>' +
     '<button id="claimall"' + (claimBlocked ? ' disabled' : '') + '>' +
     (claimBlocked ? 'eligibility required to claim' : ids.length > MAX_CLAIM_BATCH ? 'claim first 64' : 'claim all') +
@@ -1092,6 +1094,9 @@ if (fine) {
 
 setInterval(() => { if (loaded && !document.hidden) refreshOwnership().catch(() => {}); }, 10000);
 setInterval(() => { if (loaded && !document.hidden && account) refreshClaimables().catch(() => {}); }, 10000);
+// codex: eligibility can be granted while the dashboard is already open; do
+// not leave a previously-false wallet blocked until it reconnects or reloads.
+setInterval(() => { if (loaded && !document.hidden && account) refreshEligibility().catch(() => {}); }, 15000);
 setInterval(() => { if (loaded && !document.hidden) refreshTreasury().catch(() => {}); }, 60000);
 
 window.addEventListener('resize', () => { fit(); schedule(); });

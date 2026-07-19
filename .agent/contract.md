@@ -55,3 +55,20 @@ Robinhood Stock Tokens that appear in the same wallet.
   claimable/payout state.
 - Operator-signed fresh-wallet mainnet smoke with recorded transaction hashes is
   required before the production profile can be marked ready.
+
+## Codex fix scope — 2026-07-19
+
+- Merge configured legacy land ownership into the public landing map and count.
+- Make the landing hero and navigation usable without clipping at 390px.
+- Fix the eligible-wallet buy path so frontend eligibility state, simulation,
+  transaction submission, receipt handling, and ownership refresh agree.
+- Mark production changes with concise `codex:` comments.
+
+## Codex end-to-end purchase verification — 2026-07-19
+
+- Verify every currently discoverable eligible owner can simulate a funded open-plot buy.
+- Verify an ineligible address remains rejected.
+- On a local fork only, submit a signed eligible-wallet buy through the dashboard and
+  prove the receipt, current ownership bitmap, white/mine state, Your Land entry,
+  and ownership count all update without reload.
+- Never broadcast this verification purchase to mainnet.

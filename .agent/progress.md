@@ -54,3 +54,11 @@
   exact canonical Stock Token reserve funding.
 - Mainnet is also blocked on independent review and the operator-signed transaction
   sequence. UTOP launchpad gates are not on the ETH-priced first-release path.
+
+## Codex diagnosis — 2026-07-19
+
+- Fixed landing ownership merging so it matches the dashboard and preserves legacy purchases.
+- Fixed mobile landing hero/navigation clipping at 390px.
+- Fixed stale/unknown eligibility handling and added periodic eligibility refresh for open dashboards.
+- Full Forge behavior tests pass 25/25; formatting, JavaScript syntax, and diff checks pass.
+- Browser regression passed with live chain state and a read-only eligible-wallet injection.

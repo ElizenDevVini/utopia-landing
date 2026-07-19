@@ -53,3 +53,33 @@
   wallet: six deeds, claimables, five wallet-token rows, and no page exceptions.
   Mainnet-disabled Chrome smoke passed at desktop and a true 390px viewport; document
   width equaled viewport width and keyboard focus reached `mainnet pending`.
+- 2026-07-19 [codex]: Re-ran JavaScript syntax checks and the full Forge suite. JavaScript passed;
+  Forge tests passed 25/25. `forge fmt --check` still fails on pre-existing formatting in
+  `test/UtopiaLandCity.t.sol`.
+- 2026-07-19 [codex]: Confirmed chain 4663 and live bytecode at the configured land address.
+  Current ownership is 5 plots; the configured legacy contract contains 6 plots; the merged
+  city contains 10 unique plots. `app.js` merges legacy ownership, but landing `chain.js` does not,
+  so five earlier purchases disappear from the landing map/count.
+- 2026-07-19 [codex]: Headless Chrome desktop smoke rendered the landing and dashboard with live
+  chain state. A 390x844 landing capture exposed clipped navigation and hero text because the
+  desktop flex navigation has no mobile layout and `.hero` hides the overflow.
+- 2026-07-19 [codex]: No production files changed. Findings only, per diagnosis scope.
+- 2026-07-19 [codex]: User authorized fixes for landing ownership, mobile clipping,
+  and eligible wallets being unable to buy land.
+- 2026-07-19 [codex]: Patched landing ownership to OR configured legacy bitmaps into
+  current ownership. Patched the mobile hero to constrain copy and hide duplicate nav
+  links at 760px and below.
+- 2026-07-19 [codex]: Changed frontend eligibility gating to block only confirmed false
+  reads and added a 15-second refresh so newly approved wallets unlock without reload.
+  Contract simulation remains the authoritative preflight and onchain `NotEligible`
+  enforcement is unchanged.
+- 2026-07-19 [codex]: Live read-only `buy(752)` simulation from an eligible current owner
+  succeeded with exact value; no transaction was broadcast.
+- 2026-07-19 [codex]: Final CDP browser regression at 390px reported viewport/scroll width
+  390, visible headline/nav, landing and dashboard ownership count 11, active eligibility,
+  a visible buy action for open plot 723, and zero page exceptions.
+- 2026-07-19 [codex]: Final verification passed: JS syntax, shell syntax, `git diff --check`,
+  `forge fmt --check`, and 25/25 Forge tests.
+- 2026-07-19 [codex]: User requested full post-purchase verification across eligible-wallet
+  gating, receipt handling, map ownership, and Your Land hydration. Starting a local-fork
+  transaction test; no mainnet broadcast authorized.

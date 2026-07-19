@@ -170,7 +170,20 @@ async function refreshOwnership() {
       : Promise.resolve(WAD),
   ]);
   multiplier = mult;
-  ownedCount = unpackBits(bm, owned);
+  unpackBits(bm, owned);
+  // codex: keep the public landing map consistent with the dashboard by
+  // preserving purchases made against configured earlier land contracts.
+  for (const legacy of NET.legacyLands || []) {
+    try {
+      const legacyBitmap = await pub.readContract({
+        address: legacy,
+        abi,
+        functionName: 'ownershipBitmap',
+      });
+      orBits(legacyBitmap, owned);
+    } catch {}
+  }
+  ownedCount = owned.reduce((sum, bit) => sum + bit, 0);
   const contractLink = document.createElement('a');
   contractLink.href = addressUrl(LAND);
   contractLink.target = '_blank';
