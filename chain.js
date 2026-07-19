@@ -3,9 +3,9 @@
 // vendored tree-shaken viem 2.21.19 bundle; the site itself has no build step
 import {
   createPublicClient, http, defineChain, parseAbi, keccak256, encodePacked,
-} from './vendor/viem.js?v=2';
+} from './vendor/viem.js?v=3';
 
-import { addressUrl, MULTICALL3, NET, withNetwork } from './config.js';
+import { addressUrl, MULTICALL3, NET, withNetwork } from './config.js?v=3';
 
 const LAND = NET.land;
 const EXPLORER = NET.explorer;

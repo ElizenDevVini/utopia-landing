@@ -4,9 +4,9 @@
 import {
   createPublicClient, createWalletClient, custom, http,
   defineChain, parseAbi, keccak256, encodePacked,
-} from './vendor/viem.js?v=2';
-import { BG, TOPS, HOVER_TOP, CLAIMED_TOP, IN, hash, prism, makeTip } from './iso.js';
-import { addressUrl, MULTICALL3, NET, withNetwork } from './config.js';
+} from './vendor/viem.js?v=3';
+import { BG, TOPS, HOVER_TOP, CLAIMED_TOP, IN, hash, prism, makeTip } from './iso.js?v=3';
+import { addressUrl, MULTICALL3, NET, withNetwork } from './config.js?v=3';
 
 const LAND = NET.land;
 const UTOP = NET.utop;
@@ -19,7 +19,9 @@ const WAD = 10n ** 18n;
 const MAX_CLAIM_BATCH = 64;
 // utopia token — used to rank access requests by holdings (biggest holders first)
 const UTOPIA_TOKEN = '0x164d9da79722c5294369e79807980e0bff257777';
-const FORMSPREE_ENDPOINT = 'https://formspree.io/f/xpqvdodw';
+// where access requests get sent (form services block crypto solicitation)
+const ACCESS_HANDLE = '@Utopiadet';
+const ACCESS_HANDLE_URL = 'https://x.com/Utopiadet';
 const CLAIMED_TOPIC = '0x3e356ee9071ea983e847cc7da7b8b224b8f44262f7c9ce77262ea0e854a5442c';
 
 // open-plot tops by base value, cheap to premium; premium gets the gold
@@ -703,30 +705,18 @@ async function requestAccess(btn) {
     try { await connect({ prompt: true }); } catch {}
     if (!account) return;
   }
-  if (btn) { btn.disabled = true; btn.textContent = 'sending…'; }
+  if (btn) btn.disabled = true;
+  let held = 0;
   try {
-    let held = 0;
-    try {
-      const bal = await pub.readContract({ address: UTOPIA_TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [account] });
-      held = Number(bal) / 1e18;
-    } catch {}
-    const res = await fetch(FORMSPREE_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({
-        wallet: account,
-        utopiaHeld: held,
-        _subject: 'utopia access · ' + held.toLocaleString() + ' $UTOPIA · ' + account,
-      }),
-    });
-    txState(res.ok
-      ? 'request sent. approvals go out in batches, biggest $utopia holders first.'
-      : 'could not send. try again in a moment.', selEl);
-  } catch {
-    txState('could not send. try again in a moment.', selEl);
-  } finally {
-    if (btn) btn.disabled = false;
-  }
+    const bal = await pub.readContract({ address: UTOPIA_TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [account] });
+    held = Number(bal) / 1e18;
+  } catch {}
+  const line = account + ' · ' + held.toLocaleString() + ' $UTOPIA';
+  try { await navigator.clipboard.writeText(line); } catch {}
+  selEl.innerHTML = '<h3>request access</h3>' +
+    '<p class="quiet-note">copied. send it to <a href="' + ACCESS_HANDLE_URL + '" target="_blank" rel="noopener">' +
+    ACCESS_HANDLE + '</a> to get approved. bigger $utopia holders go first.</p>' +
+    '<p class="quiet-note" style="word-break:break-all">' + line + '</p>';
 }
 
 // ---- holdings ----
