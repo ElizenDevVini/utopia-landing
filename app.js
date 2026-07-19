@@ -192,7 +192,7 @@ function perYear(id) {
 function tokenAvailable(idx) {
   if (!treasuryBalances) return null;
   const bal = treasuryBalances[idx];
-  if (bal == null) return 0n;
+  if (bal == null) return null; // read failed = unknown, not confirmed empty
   const com = treasuryCommitted?.[idx] ?? 0n;
   return bal > com ? bal - com : 0n;
 }
@@ -328,20 +328,25 @@ async function refreshTreasury() {
       pub.readContract({ address: LAND, abi, functionName: 'tokens', args: [BigInt(i)] })
     ));
   }
+  const readBal = token => pub.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [LAND] }).catch(() => null);
   const [balances, committed, end] = await Promise.all([
-    Promise.all(tokenAddresses.map(token =>
-      pub.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [LAND] })
-        .catch(() => null)
-    )),
+    Promise.all(tokenAddresses.map(readBal)),
     NET.landVersion === 4
       ? Promise.all(Array.from({ length: 5 }, (_, i) =>
-        pub.readContract({ address: LAND, abi, functionName: 'totalCommittedByToken', args: [BigInt(i)] })
+        pub.readContract({ address: LAND, abi, functionName: 'totalCommittedByToken', args: [BigInt(i)] }).catch(() => null)
       ))
       : Promise.resolve(null),
     NET.landVersion === 4
-      ? pub.readContract({ address: LAND, abi, functionName: 'rewardEnd' })
+      ? pub.readContract({ address: LAND, abi, functionName: 'rewardEnd' }).catch(() => rewardEnd)
       : Promise.resolve(null),
   ]);
+  // one retry for any balance the flaky public RPC dropped, so a transient
+  // failure never gets shown to visitors as an empty treasury
+  if (balances.some(b => b == null)) {
+    await Promise.all(balances.map(async (b, i) => {
+      if (b == null) balances[i] = await readBal(tokenAddresses[i]);
+    }));
+  }
   treasuryBalances = balances;
   treasuryCommitted = committed;
   rewardEnd = end;
