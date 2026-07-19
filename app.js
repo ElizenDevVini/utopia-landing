@@ -25,7 +25,7 @@ const ACCESS_HANDLE_URL = 'https://x.com/Utopiadet';
 // optional: paste your Google Apps Script web-app URL here to auto-collect
 // requests into a Sheet. Leave '' to use the copy-to-DM flow only. See
 // contracts/../ACCESS_COLLECTION.md for the 4-line script + deploy steps.
-const ACCESS_WEBHOOK = '';
+const ACCESS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbxCTc6Njp2nRwfXo2t5SbH0jE-Ft9sV0LuQpCG-04ByPlXj1KCWneCp3BJtjjlxXHQP_w/exec';
 const CLAIMED_TOPIC = '0x3e356ee9071ea983e847cc7da7b8b224b8f44262f7c9ce77262ea0e854a5442c';
 
 // open-plot tops by base value, cheap to premium; premium gets the gold
