@@ -6,7 +6,7 @@ import {
   defineChain, parseAbi, keccak256, encodePacked,
 } from './vendor/viem.js?v=3';
 import { BG, TOPS, HOVER_TOP, CLAIMED_TOP, IN, hash, prism, makeTip } from './iso.js?v=3';
-import { addressUrl, MULTICALL3, NET, withNetwork } from './config.js?v=3';
+import { addressUrl, MULTICALL3, NET, withNetwork } from './config.js?v=4';
 
 const LAND = NET.land;
 const UTOP = NET.utop;
@@ -89,6 +89,12 @@ const chain = defineChain({
   blockExplorers: { default: { name: 'Blockscout', url: EXPLORER } },
   contracts: { multicall3: { address: MULTICALL3 } },
 });
+
+// what gets registered in the user's wallet: the official RPC, so their wallet
+// never depends on our proxy being awake to send transactions
+const walletChain = NET.walletRpc
+  ? { ...chain, rpcUrls: { default: { http: [NET.walletRpc] } } }
+  : chain;
 
 const abi = parseAbi([
   'function buy(uint256 id) payable',
@@ -534,7 +540,7 @@ async function ensureWalletChain(wallet) {
     await wallet.switchChain({ id: chain.id });
   } catch (err) {
     if (walletErrorCode(err) !== 4902) throw err;
-    await wallet.addChain({ chain });
+    await wallet.addChain({ chain: walletChain });
     await wallet.switchChain({ id: chain.id });
   }
 }

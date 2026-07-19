@@ -6,7 +6,10 @@ const active = {
   key: 'mainnet',
   label: 'robinhood chain',
   chainId: 4663,
-  rpc: 'https://rpc.mainnet.chain.robinhood.com',
+  // site reads go through our caching proxy so many visitors don't each hit the
+  // public RPC's Cloudflare rate limit; wallets get the official RPC (walletRpc)
+  rpc: 'https://utopia-rpc-proxy.onrender.com',
+  walletRpc: 'https://rpc.mainnet.chain.robinhood.com',
   explorer: 'https://robinhoodchain.blockscout.com',
   land: '0xb93Ee2B0996C3a0577eC4E3a776D81D4E4FCbed2',
   utop: '',
