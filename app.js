@@ -19,7 +19,7 @@ const WAD = 10n ** 18n;
 const MAX_CLAIM_BATCH = 64;
 // utopia token — used to rank access requests by holdings (biggest holders first)
 const UTOPIA_TOKEN = '0x164d9da79722c5294369e79807980e0bff257777';
-const FORMSPREE_ENDPOINT = 'https://formspree.io/f/mnjedopb';
+const FORMSPREE_ENDPOINT = 'https://formspree.io/f/xpqvdodw';
 const CLAIMED_TOPIC = '0x3e356ee9071ea983e847cc7da7b8b224b8f44262f7c9ce77262ea0e854a5442c';
 
 // open-plot tops by base value, cheap to premium; premium gets the gold
