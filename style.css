@@ -287,3 +287,10 @@ footer .fine { margin-top: 1.4rem; font-size: 0.8rem; }
   .hero-copy { top: 15svh; right: 1.4rem; }
   main section, footer { padding-top: 3.6rem; padding-bottom: 3.6rem; }
 }
+
+.contract-line {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  word-break: break-all;
+}
