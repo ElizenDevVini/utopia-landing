@@ -205,3 +205,5 @@
   .bar #wallet { white-space: nowrap; }
   .crumb { order: 3; flex-basis: 100%; }
 }
+
+.side .wallet-pick { margin-right: 0.5rem; }

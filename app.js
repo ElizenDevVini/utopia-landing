@@ -345,13 +345,29 @@ async function load() {
   }
 }
 
-// ---- wallet ----
+// ---- wallet (EIP-6963 multi-wallet discovery: MetaMask, Phantom, Rabby, …) ----
 
-function getWalletClient() {
-  if (!walletClient && window.ethereum) {
-    walletClient = createWalletClient({ chain, transport: custom(window.ethereum) });
+const wallets = new Map(); // rdns -> { info, provider }
+let provider = null; // the chosen EIP-1193 provider
+let eventsAttached = false;
+
+window.addEventListener('eip6963:announceProvider', e => {
+  const { info, provider: p } = e.detail;
+  wallets.set(info.rdns, { info, provider: p });
+});
+window.dispatchEvent(new Event('eip6963:requestProvider'));
+
+function discovered() {
+  const list = [...wallets.values()];
+  // fall back to a legacy injected provider if nothing announced via 6963
+  if (!list.length && window.ethereum) {
+    list.push({ info: { name: window.ethereum.isMetaMask ? 'MetaMask' : 'Browser wallet', rdns: 'injected' }, provider: window.ethereum });
   }
-  return walletClient;
+  return list;
+}
+
+function walletClientFor(p) {
+  return createWalletClient({ chain, transport: custom(p) });
 }
 
 function walletErrorCode(err) {
@@ -374,21 +390,94 @@ async function ensureWalletChain(wallet) {
   }
 }
 
+// show a small in-panel picker when more than one wallet is installed
+function showWalletPicker() {
+  const list = discovered();
+  const buttons = list.map(w =>
+    '<button class="wallet-pick" data-rdns="' + w.info.rdns + '">' + w.info.name + '</button>'
+  ).join(' ');
+  selEl.innerHTML = '<h3>connect a wallet</h3><p class="quiet-note">pick one to continue.</p>' + buttons;
+}
+
+selEl.addEventListener('click', async e => {
+  const pick = e.target.closest('.wallet-pick');
+  if (!pick) return;
+  const found = discovered().find(w => w.info.rdns === pick.dataset.rdns);
+  if (found) {
+    provider = found.provider;
+    try { await connect({ prompt: true }); }
+    catch (err) { txState(walletErrorCode(err) === 4001 ? 'connection cancelled.' : 'wallet connection failed.', selEl); }
+  }
+});
+
+function attachProviderEvents(p) {
+  if (eventsAttached || !p.on) return;
+  eventsAttached = true;
+  p.on('accountsChanged', async accs => {
+    account = accs[0] || null;
+    walletLink.textContent = account ? short(account) : 'connect wallet';
+    claimables.clear();
+    walletStockBalances = null;
+    accountEligible = NET.requiresEligibility ? null : true;
+    if (NET.ready) {
+      await Promise.all([
+        refreshOwnership().catch(() => {}),
+        refreshEligibility().catch(() => {}),
+        refreshWalletStocks().catch(() => {}),
+      ]);
+    }
+    if (NET.ready && account) await refreshClaimables().catch(() => {});
+  });
+  p.on('chainChanged', chainIdHex => {
+    if (Number(chainIdHex) !== chain.id) {
+      account = null;
+      mine.fill(0);
+      claimables.clear();
+      walletStockBalances = null;
+      accountEligible = NET.requiresEligibility ? null : true;
+      walletLink.textContent = 'switch network';
+      renderHoldings();
+      schedule();
+    } else {
+      connect({ prompt: false }).catch(() => {});
+    }
+  });
+  p.on('disconnect', () => {
+    account = null;
+    mine.fill(0);
+    claimables.clear();
+    walletStockBalances = null;
+    accountEligible = NET.requiresEligibility ? null : true;
+    walletLink.textContent = 'connect wallet';
+    renderHoldings();
+    schedule();
+  });
+}
+
 async function connect({ prompt = true } = {}) {
   if (!NET.ready) {
     selEl.innerHTML = '<h3>mainnet pending</h3><p class="quiet-note">' +
       NET.activationIssue + '. the preview city remains available.</p>';
     return null;
   }
-  if (!window.ethereum) {
-    selEl.innerHTML = '<h3>no wallet</h3><p class="quiet-note">utopia needs a browser wallet like MetaMask or Rabby. the map stays readable without one.</p>';
+  const list = discovered();
+  if (!list.length) {
+    selEl.innerHTML = '<h3>no wallet</h3><p class="quiet-note">install MetaMask or Phantom to buy. the map stays readable without one.</p>';
     return null;
   }
-  const wallet = getWalletClient();
+  // if the user hasn't chosen yet and several are installed, ask which
+  if (!provider) {
+    if (list.length === 1) provider = list[0].provider;
+    else if (prompt) { showWalletPicker(); return null; }
+    else return null;
+  }
+  const wallet = walletClientFor(provider);
+  attachProviderEvents(provider);
   const addresses = prompt ? await wallet.requestAddresses() : await wallet.getAddresses();
   const addr = addresses[0];
   if (!addr) return null;
   await ensureWalletChain(wallet);
+  walletClient = wallet;
   account = addr;
   walletLink.textContent = short(addr);
   await Promise.all([refreshOwnership(), refreshEligibility(), refreshWalletStocks()]);
@@ -405,48 +494,6 @@ walletLink.addEventListener('click', async e => {
     txState(message, selEl);
   }
 });
-
-if (window.ethereum) {
-  window.ethereum.on?.('accountsChanged', async accs => {
-    account = accs[0] || null;
-    walletLink.textContent = account ? short(account) : 'connect wallet';
-    claimables.clear();
-    walletStockBalances = null;
-    accountEligible = NET.requiresEligibility ? null : true;
-    if (NET.ready) {
-      await Promise.all([
-        refreshOwnership().catch(() => {}),
-        refreshEligibility().catch(() => {}),
-        refreshWalletStocks().catch(() => {}),
-      ]);
-    }
-    if (NET.ready && account) await refreshClaimables().catch(() => {});
-  });
-  window.ethereum.on?.('chainChanged', chainIdHex => {
-    if (Number(chainIdHex) !== chain.id) {
-      account = null;
-      mine.fill(0);
-      claimables.clear();
-      walletStockBalances = null;
-      accountEligible = NET.requiresEligibility ? null : true;
-      walletLink.textContent = 'switch network';
-      renderHoldings();
-      schedule();
-    } else {
-      connect({ prompt: false }).catch(() => {});
-    }
-  });
-  window.ethereum.on?.('disconnect', () => {
-    account = null;
-    mine.fill(0);
-    claimables.clear();
-    walletStockBalances = null;
-    accountEligible = NET.requiresEligibility ? null : true;
-    walletLink.textContent = 'connect wallet';
-    renderHoldings();
-    schedule();
-  });
-}
 
 // ---- selected plot ----
 
