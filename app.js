@@ -40,8 +40,9 @@ const DISTRICTS = [
 ];
 const DISTRICT_CENTROIDS = [[15.5, 15.5], [7.5, 7.5], [23.5, 7.5], [7.5, 23.5], [23.5, 23.5]];
 
-// preview skyline: sold plots shown as named skyscrapers (visual demo)
-const DEMO_SKYLINE = true;
+// preview skyline: named demo skyscrapers, shown only with ?demo in the URL so
+// the live site never displays fake sold plots. real sold plots become towers.
+const DEMO_SKYLINE = new URLSearchParams(location.search).has('demo');
 const DEMO_PLOTS = [
   { x: 16, y: 16, name: 'the spire', h: 4.8 },
   { x: 14, y: 18, name: 'obsidian', h: 3.9 },
@@ -215,7 +216,10 @@ function fit() {
 function zOf(id) {
   const x = id % SIDE, y = (id / SIDE) | 0;
   if (!owned[id]) return 0.08;
-  return 0.35 + hash(x + 7, y + 13) * 0.85;
+  // sold plots rise as skyscrapers — deterministic height so everyone sees the
+  // same skyline, taller toward the center
+  const near = Math.exp(-((x - 15.5) ** 2 + (y - 15.5) ** 2) / 260);
+  return 1.3 + hash(x + 7, y + 13) * 1.8 + near * 1.6;
 }
 
 function render() {
