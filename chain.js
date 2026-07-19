@@ -115,6 +115,16 @@ function schedule() {
 
 // deterministic plot attributes, computed locally (matches the contract) so
 // the map loads instantly without a heavy plotsPacked RPC call
+function contractTokenOf(id) {
+  if (NET.rewardMode < 5) return NET.rewardMode;
+  const x = id % SIDE, y = (id / SIDE) | 0;
+  const dx = 2 * x - 31, dy = 2 * y - 31;
+  if (dx * dx + dy * dy < 256) return 2;
+  if (dx < 0 && dy < 0) return 0;
+  if (dx >= 0 && dy < 0) return 1;
+  if (dx < 0 && dy >= 0) return 3;
+  return 4;
+}
 function h256(salt, id) {
   return BigInt(keccak256(encodePacked(['string', 'uint256'], [salt, BigInt(id)])));
 }
@@ -129,7 +139,7 @@ function loadStatic() {
     const raw = base + premium;
     prices[id] = raw - (raw % 10000000000000n);
     apys[id] = Number(310n + (h256('utopia/apy/v1', id) % 271n));
-    tokIdx[id] = Number(h256('utopia/token/v1', id) % 5n);
+    tokIdx[id] = contractTokenOf(id);
   }
 }
 

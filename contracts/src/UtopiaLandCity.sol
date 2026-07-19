@@ -34,10 +34,14 @@ contract UtopiaLandCity is ERC721, Ownable2Step, ReentrancyGuard {
     uint256 public constant MIN_REWARD_DURATION = 30 days;
     uint256 public constant MAX_REWARD_DURATION = 730 days;
 
+    // 5 = district mode (stock by region); 0..4 = every plot pays that one stock
+    uint256 public constant DISTRICT_MODE = 5;
+
     IERC20[5] public tokens;
     uint256[5] public tokensPerEthWad;
     IUtopiaEligibility public immutable eligibilityRegistry;
     uint64 public immutable rewardEnd;
+    uint256 public immutable rewardMode;
 
     mapping(uint256 => uint64) public lastClaim;
     mapping(uint256 => uint256) public reserveCommitment;
@@ -72,8 +76,11 @@ contract UtopiaLandCity is ERC721, Ownable2Step, ReentrancyGuard {
         uint256[5] memory rates_,
         IUtopiaEligibility eligibilityRegistry_,
         uint64 rewardEnd_,
-        address initialOwner
+        address initialOwner,
+        uint256 rewardMode_
     ) ERC721("utopia land", "PLOT") Ownable(initialOwner) {
+        if (rewardMode_ > DISTRICT_MODE) revert InvalidConfig();
+        rewardMode = rewardMode_;
         if (address(eligibilityRegistry_) == address(0)) revert InvalidConfig();
         if (rewardEnd_ < block.timestamp + MIN_REWARD_DURATION || rewardEnd_ > block.timestamp + MAX_REWARD_DURATION) {
             revert InvalidConfig();
@@ -115,11 +122,13 @@ contract UtopiaLandCity is ERC721, Ownable2Step, ReentrancyGuard {
         return 310 + (uint256(keccak256(abi.encodePacked("utopia/apy/v1", id))) % 271);
     }
 
-    /// @notice District-based reward stock: a center circle plus four quarters,
-    /// matching the map. tokens = [TSLA, AAPL, NVDA, MSFT, AMZN].
-    /// silicon heights (center) = NVDA; the four corners are the other stocks.
-    function tokenIndexOf(uint256 id) public pure returns (uint256) {
+    /// @notice Reward stock for a plot. In uniform mode (rewardMode 0..4) every
+    /// plot pays that one stock. In district mode a center circle plus four
+    /// quarters map to the five stocks; tokens = [TSLA, AAPL, NVDA, MSFT, AMZN],
+    /// silicon heights (center) = NVDA.
+    function tokenIndexOf(uint256 id) public view returns (uint256) {
         if (id >= PLOTS) revert InvalidPlot();
+        if (rewardMode != DISTRICT_MODE) return rewardMode;
         int256 dx = 2 * int256(id % SIDE) - 31; // 2*(x - 15.5)
         int256 dy = 2 * int256(id / SIDE) - 31; // 2*(y - 15.5)
         if (dx * dx + dy * dy < 256) return 2; // center circle (r<8) -> NVDA
@@ -262,7 +271,7 @@ contract UtopiaLandCity is ERC721, Ownable2Step, ReentrancyGuard {
     }
 
     /// @notice price (bits 0..127) | rewardBps << 128 | tokenIdx << 144.
-    function plotsPacked() external pure returns (uint256[1024] memory out) {
+    function plotsPacked() external view returns (uint256[1024] memory out) {
         for (uint256 id = 0; id < PLOTS; id++) {
             out[id] = priceOf(id) | (apyBpsOf(id) << 128) | (tokenIndexOf(id) << 144);
         }

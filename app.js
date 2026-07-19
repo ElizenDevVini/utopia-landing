@@ -62,6 +62,18 @@ function districtOf(x, y) {
   if (dx < 0 && dy >= 0) return 3;
   return 4;
 }
+// contract token index for a plot (matches UtopiaLandCity.tokenIndexOf):
+// tokens = [TSLA, AAPL, NVDA, MSFT, AMZN]
+function contractTokenOf(id) {
+  if (NET.rewardMode < 5) return NET.rewardMode; // uniform: every plot one stock
+  const x = id % SIDE, y = (id / SIDE) | 0;
+  const dx = 2 * x - 31, dy = 2 * y - 31;
+  if (dx * dx + dy * dy < 256) return 2;
+  if (dx < 0 && dy < 0) return 0;
+  if (dx >= 0 && dy < 0) return 1;
+  if (dx < 0 && dy >= 0) return 3;
+  return 4;
+}
 
 // open-plot tops by base value, cheap to premium; premium gets the gold
 const TIER_TOPS = ['#dbe7f5', '#b9d3ec', '#8fb9e4', '#e3c67b'];
@@ -303,7 +315,7 @@ function loadStatic() {
     const raw = base + premium;
     basePrices[id] = raw - (raw % 10000000000000n);
     apys[id] = Number(310n + (h256('utopia/apy/v1', id) % 271n));
-    tokIdx[id] = Number(h256('utopia/token/v1', id) % 5n);
+    tokIdx[id] = contractTokenOf(id);
     let t = TIERS.findIndex(v => basePrices[id] < v);
     tiers[id] = t < 0 ? 3 : t;
   }

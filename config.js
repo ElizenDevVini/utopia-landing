@@ -12,6 +12,9 @@ const active = {
   utop: '',
   symbols: ['TSLA', 'AAPL', 'NVDA', 'MSFT', 'AMZN'],
   landVersion: 4,
+  // 5 = district mode (stock by region); 0..4 = every plot pays that one stock
+  // (NVDA = 2). Must match the deployed contract's rewardMode.
+  rewardMode: 2,
   payment: 'native',
   requiresEligibility: true,
   eligibilityUrl: '',

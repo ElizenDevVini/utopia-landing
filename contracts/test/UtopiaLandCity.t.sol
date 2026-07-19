@@ -44,7 +44,7 @@ contract UtopiaLandCityTest is Test {
             stocks[i] = new MockStock();
             toks[i] = IERC20(address(stocks[i]));
         }
-        land = new UtopiaLandCity(toks, rates, IUtopiaEligibility(address(reg)), uint64(block.timestamp + 90 days), address(this));
+        land = new UtopiaLandCity(toks, rates, IUtopiaEligibility(address(reg)), uint64(block.timestamp + 90 days), address(this), 5);
         for (uint256 i = 0; i < 5; i++) stocks[i].mint(address(land), 100e18);
     }
 

@@ -45,12 +45,15 @@ contract DeployCity is Script {
             require(existingRegistry.code.length > 0, "eligibility registry has no code");
         }
 
+        // 5 = district mode; 0..4 = every plot pays that one stock (NVDA = 2)
+        uint256 rewardMode = vm.envOr("UTOPIA_REWARD_MODE", uint256(5));
+
         vm.startBroadcast();
         IUtopiaEligibility registry = existingRegistry == address(0)
             ? IUtopiaEligibility(address(new UtopiaEligibility(owner)))
             : IUtopiaEligibility(existingRegistry);
         // forge-lint: disable-next-line(unsafe-typecast)
-        UtopiaLandCity land = new UtopiaLandCity(toks, rates, registry, uint64(rewardEndRaw), owner);
+        UtopiaLandCity land = new UtopiaLandCity(toks, rates, registry, uint64(rewardEndRaw), owner, rewardMode);
         vm.stopBroadcast();
 
         console.log("UtopiaEligibility:", address(registry));
