@@ -378,7 +378,7 @@ async function ensureWalletChain(wallet) {
 async function connect({ prompt = true } = {}) {
   if (!NET.ready) {
     selEl.innerHTML = '<h3>mainnet pending</h3><p class="quiet-note">' +
-      NET.activationIssue + '. the testnet city remains available.</p>';
+      NET.activationIssue + '. the preview city remains available.</p>';
     return null;
   }
   if (!window.ethereum) {
@@ -574,7 +574,7 @@ async function doTx(act, ids, trigger) {
         const message = NET.payment === 'native'
           ? NET.key === 'mainnet'
             ? 'not enough ETH for this plot and gas.'
-            : 'not enough test ETH. use the faucet link below.'
+            : 'not enough preview ETH. use the faucet link below.'
           : NET.utopFaucet
             ? 'not enough UTOP. use “get 1,000 UTOP” below.'
             : 'not enough UTOP in this wallet.';
@@ -629,7 +629,7 @@ async function doTx(act, ids, trigger) {
     root = txRoot(act);
     const success = act === 'buy'
       ? 'yours. the block just rose.'
-      : act === 'faucet' ? '1,000 testnet UTOP received.' : claimSummary(receipt);
+      : act === 'faucet' ? '1,000 UTOP received.' : claimSummary(receipt);
     txState(success, root);
   } catch (err) {
     if (btn) btn.disabled = false;
@@ -674,7 +674,7 @@ function renderHoldings() {
   const portfolio = walletStocksHtml();
   const faucetBtn = NET.utopFaucet ? '<button id="getutop">get 1,000 UTOP</button>' : '';
   const nativeFaucet = NET.nativeFaucet
-    ? '<p><a href="' + NET.nativeFaucet + '" target="_blank" rel="noopener">get test ETH for gas</a></p>'
+    ? '<p><a href="' + NET.nativeFaucet + '" target="_blank" rel="noopener">get preview ETH for gas</a></p>'
     : '';
   const ids = [];
   for (let i = 0; i < PLOTS; i++) if (mine[i]) ids.push(i);
@@ -751,9 +751,9 @@ function renderMarket() {
   const marketNote = NET.landVersion === 4
     ? 'fixed ETH prices · rewards stop on ' + formatRewardEnd() + ' · every sold plot is fully reserved.'
     : NET.landVersion === 1
-      ? 'plot prices are fixed in test ETH. reward rates are reference streaming rates, not investment APY.'
+      ? 'plot prices are fixed in preview ETH. reward rates are reference streaming rates, not investment APY.'
       : NET.landVersion === 2
-        ? 'testnet V2 scales both UTOP plot prices and reward rates with its current market multiplier.'
+        ? 'preview V2 scales both UTOP plot prices and reward rates with its current market multiplier.'
         : 'mainnet-candidate plot prices stay fixed in UTOP; checkpointed market growth affects only future reward intervals.';
   const multiplierRow = NET.landVersion === 2 || NET.landVersion === 3
     ? '<div class="row"><span class="k">multiplier</span><span class="v">' + fmtMult() + '</span></div>'
@@ -833,7 +833,7 @@ function configurePage() {
     ? NET.ready
       ? 'mainnet · eligibility required · Stock Tokens are restricted tokenized debt securities.'
       : 'mainnet is not active · ' + NET.activationIssue + '.'
-    : 'testnet only. test ETH and testnet Stock Tokens have no value. not an offer of anything.';
+    : 'preview network only. Preview assets have no value. not an offer of anything.';
 
   const links = [
     ['land-contract-link', addressUrl(LAND)],
@@ -860,5 +860,5 @@ if (NET.ready) {
   load();
   connect({ prompt: false }).catch(() => {});
 } else {
-  statusEl.textContent = NET.label + ' is not active · ' + NET.activationIssue + '. the testnet city remains available.';
+  statusEl.textContent = NET.label + ' is not active · ' + NET.activationIssue + '. the preview city remains available.';
 }

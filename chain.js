@@ -266,24 +266,24 @@ function configureCopy() {
 
   if (!NET.ready) {
     liveCopy.textContent = 'The mainnet profile is intentionally disabled: ' + NET.activationIssue + '. Activation also requires verified contracts, full reserve coverage, and a recorded fresh-wallet proof.';
-    faqTry.textContent = 'Use the testnet profile today. Mainnet wallet actions stay disabled until every production gate passes.';
+    faqTry.textContent = 'Use the preview profile today. Mainnet wallet actions stay disabled until every production gate passes.';
     faqBacking.textContent = 'The production contract reserves each sold plot’s complete finite reward obligation and prevents the owner from removing committed Stock Tokens. It is not deployed or audited yet.';
     document.getElementById('chain-copy').append(' The mainnet Utopia deployment is still pending.');
-    faqLive.textContent = 'The testnet loop is live and verifiable. The mainnet profile is not active until every release gate passes.';
-    footerCopy.textContent = 'utopia mainnet is not active. use the funded testnet prototype to inspect the current product loop.';
+    faqLive.textContent = 'The preview loop is live and verifiable. The mainnet profile is not active until every release gate passes.';
+    footerCopy.textContent = 'utopia mainnet is not active. use the funded preview prototype to inspect the current product loop.';
     return;
   }
 
   const profileText = NET.landVersion === 4
     ? 'This grid reads the production ETH-priced city: 1,024 plots on the '
     : NET.landVersion === 1
-      ? 'This grid reads the ETH-priced testnet prototype: 1,024 plots on the '
-      : 'This grid reads the funded UTOP-priced V2 testnet preview: 1,024 plots on the ';
+      ? 'This grid reads the ETH-priced preview prototype: 1,024 plots on the '
+      : 'This grid reads the funded UTOP-priced preview: 1,024 plots on the ';
   const economicText = NET.landVersion === 4
     ? ' Each sold plot’s finite Stock Token reward is reserved in full. Purchases, transfers, and claims require current eligibility. Open the '
     : NET.landVersion === 1
-      ? ' Plots use test ETH. The dashboard checks all five reward reserves live and warns when claims can only accrue as unpaid debt. Open the '
-      : ' Plots use testnet UTOP. V2 scales both plot prices and reward rates with its test-only market multiplier. Open the ';
+      ? ' Plots use preview ETH. The dashboard checks all five reward reserves live and warns when claims can only accrue as unpaid debt. Open the '
+      : ' Plots use preview UTOP. V2 scales both plot prices and reward rates with its preview-only market multiplier. Open the ';
   liveCopy.replaceChildren(
     document.createTextNode(profileText),
     contractLink,
@@ -294,8 +294,8 @@ function configureCopy() {
   faqTry.textContent = NET.landVersion === 4
     ? 'Complete the eligibility flow, connect an eligible wallet with ETH, then select an open plot on the dashboard.'
     : NET.payment === 'native'
-      ? 'Get test ETH for gas and plot payment, then open the dashboard and select an empty plot.'
-    : 'Get test ETH for gas and testnet UTOP from the dashboard faucet, then select an empty plot.';
+      ? 'Get preview ETH for gas and plot payment, then open the dashboard and select an empty plot.'
+    : 'Get preview ETH for gas and preview UTOP from the dashboard faucet, then select an empty plot.';
   faqBacking.textContent = NET.landVersion === 4
     ? 'Every sold plot is backed through the immutable reward deadline. Committed Stock Tokens cannot be withdrawn by the owner; balances and commitments are public.'
     : 'Only Stock Tokens already held by the land contract can fund payouts. The dashboard reads those reserves live and reports any unpaid debt after a claim.';

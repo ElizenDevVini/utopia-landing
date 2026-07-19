@@ -8,7 +8,7 @@ export const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
 export const NETWORKS = {
   testnet: {
     key: 'testnet',
-    label: 'robinhood chain testnet',
+    label: 'robinhood chain · preview',
     chainId: 46630,
     rpc: 'https://rpc.testnet.chain.robinhood.com',
     explorer: 'https://explorer.testnet.chain.robinhood.com',
@@ -27,7 +27,7 @@ export const NETWORKS = {
   },
   'testnet-v2': {
     key: 'testnet-v2',
-    label: 'robinhood chain testnet · UTOP V2',
+    label: 'robinhood chain · preview · UTOP V2',
     chainId: 46630,
     rpc: 'https://rpc.testnet.chain.robinhood.com',
     explorer: 'https://explorer.testnet.chain.robinhood.com',
