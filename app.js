@@ -507,6 +507,14 @@ function discovered() {
   return list;
 }
 
+// re-ask for providers and give late-injecting wallets (Rabby, in-app browsers)
+// a moment to announce — the one-shot request at load misses them
+async function collectWallets() {
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+  await new Promise(r => setTimeout(r, 300));
+  return discovered();
+}
+
 function walletClientFor(p) {
   return createWalletClient({ chain, transport: custom(p) });
 }
@@ -601,9 +609,10 @@ async function connect({ prompt = true } = {}) {
       NET.activationIssue + '. the preview city remains available.</p>';
     return null;
   }
-  const list = discovered();
+  // on an explicit connect, re-poll so late wallets (Rabby, in-app browsers) show
+  const list = prompt ? await collectWallets() : discovered();
   if (!list.length) {
-    selEl.innerHTML = '<h3>no wallet</h3><p class="quiet-note">install MetaMask or Phantom to buy. the map stays readable without one.</p>';
+    selEl.innerHTML = '<h3>no wallet</h3><p class="quiet-note">install MetaMask, Rabby, or Phantom to buy. the map stays readable without one.</p>';
     return null;
   }
   // if the user hasn't chosen yet and several are installed, ask which
