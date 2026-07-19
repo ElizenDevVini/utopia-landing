@@ -141,6 +141,20 @@ function perYear(id) {
   return (basePrices[id] * BigInt(apys[id]) * rates[tokIdx[id]] * multiplier) / (10000n * WAD * WAD);
 }
 
+// uncommitted reward reserve for a token index; null if not loaded yet
+function tokenAvailable(idx) {
+  if (!treasuryBalances) return null;
+  const bal = treasuryBalances[idx];
+  if (bal == null) return 0n;
+  const com = treasuryCommitted?.[idx] ?? 0n;
+  return bal > com ? bal - com : 0n;
+}
+function fundedTokenNames() {
+  const out = [];
+  for (let i = 0; i < 5; i++) { const a = tokenAvailable(i); if (a && a > 0n) out.push(SYMBOLS[i]); }
+  return out;
+}
+
 function formatRewardEnd() {
   if (!rewardEnd) return '';
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'UTC' })
@@ -267,9 +281,10 @@ async function refreshEligibility() {
   if (!NET.requiresEligibility || !account) {
     accountEligible = NET.requiresEligibility ? null : true;
   } else {
+    // null = read failed / unknown (don't hard-block); true/false = confirmed
     accountEligible = await pub.readContract({
       address: LAND, abi, functionName: 'isEligible', args: [account],
-    }).catch(() => false);
+    }).catch(() => null);
   }
   renderHoldings();
   if (selected >= 0) renderSel();
@@ -530,13 +545,25 @@ function renderSel() {
     '<div class="row"><span class="k">reward token</span><span class="v">' + SYMBOLS[tokIdx[id]] + '</span></div>' +
     streams;
   if (!owned[id]) {
-    const blocked = account && NET.requiresEligibility && accountEligible !== true;
-    const label = blocked
-      ? 'request access to buy'
-      : account ? 'buy for ' + fmtPrice(priceNow(id)) : 'connect wallet to buy';
-    selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + '</h3>' + rows +
-      '<button id="' + (blocked ? 'reqaccess' : 'act') + '" data-act="buy">' + label + '</button>' +
-      '<p class="txstate"></p>';
+    // this plot's reward token must have reserve, or the buy reverts on-chain
+    const avail = tokenAvailable(tokIdx[id]);
+    const unfunded = avail != null && avail <= 0n;
+    // only hard-block when eligibility is *confirmed* false; an unknown/failed
+    // read must not hide the buy button from an actually-eligible wallet
+    const needsAccess = account && NET.requiresEligibility && accountEligible === false;
+    if (unfunded) {
+      const funded = fundedTokenNames();
+      selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + '</h3>' + rows +
+        '<p class="quiet-note">' + SYMBOLS[tokIdx[id]] + ' rewards aren’t funded yet, so this plot can’t be bought right now.' +
+        (funded.length ? ' fundable now: ' + funded.join(', ') + ' plots.' : '') + '</p>';
+    } else {
+      const label = needsAccess
+        ? 'request access to buy'
+        : account ? 'buy for ' + fmtPrice(priceNow(id)) : 'connect wallet to buy';
+      selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + '</h3>' + rows +
+        '<button id="' + (needsAccess ? 'reqaccess' : 'act') + '" data-act="buy">' + label + '</button>' +
+        '<p class="txstate"></p>';
+    }
   } else if (mine[id]) {
     const c = claimables.get(id);
     const blocked = NET.requiresEligibility && accountEligible !== true;
@@ -814,15 +841,21 @@ holdingsEl.addEventListener('click', e => {
 
 function renderMarket() {
   if (!basePrices) return;
+  // only suggest plots whose reward token is actually funded (buyable); fall
+  // back to any open plot before treasury data loads
+  const buyable = id => { const a = tokenAvailable(tokIdx[id]); return a == null || a > 0n; };
   let cheapest = -1;
   let bestApy = -1;
   for (let i = 0; i < PLOTS; i++) {
-    if (owned[i]) continue;
+    if (owned[i] || !buyable(i)) continue;
     if (cheapest < 0 || basePrices[i] < basePrices[cheapest]) cheapest = i;
     if (bestApy < 0 || apys[i] > apys[bestApy]) bestApy = i;
   }
   if (cheapest < 0) {
-    marketEl.innerHTML = '<p class="quiet-note">every plot is owned. the city is sold out.</p>';
+    const funded = fundedTokenNames();
+    marketEl.innerHTML = '<p class="quiet-note">' +
+      (funded.length ? 'no ' + funded.join('/') + ' plots left to buy right now.' : 'no plots are buyable right now — reward treasury is empty.') +
+      '</p>';
     return;
   }
   const reserveShortfall = treasuryBalances && treasuryCommitted && treasuryBalances.some((balance, i) =>
