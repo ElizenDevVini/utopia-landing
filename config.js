@@ -8,7 +8,7 @@ const active = {
   chainId: 4663,
   rpc: 'https://rpc.mainnet.chain.robinhood.com',
   explorer: 'https://robinhoodchain.blockscout.com',
-  land: '0x5b9D835d00721aD80a22fcb62c349702264489c2',
+  land: '0xb93Ee2B0996C3a0577eC4E3a776D81D4E4FCbed2',
   utop: '',
   symbols: ['TSLA', 'AAPL', 'NVDA', 'MSFT', 'AMZN'],
   landVersion: 4,
