@@ -7,8 +7,8 @@ import {
   tokenOf, apyOf, annualYield, districtIdx, districtName, coords,
   fmtEth, short, addressUrl, refreshListings, refreshSales, listings, sales,
   floors, holderMarketSummary, connect,
-} from './market-data.js?v=4';
-import * as MD from './market-data.js?v=4';
+} from './market-data.js?v=5';
+import * as MD from './market-data.js?v=5';
 
 const statusEl = document.getElementById('market-status');
 const earnersEl = document.querySelector('#earners .body');

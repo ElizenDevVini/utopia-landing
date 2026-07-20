@@ -5,9 +5,9 @@ import {
   tokenOf, apyOf, annualYield, districtIdx, districtName, DCOLORS, coords,
   fmtEth, short, addressUrl, bitmapToIds, floors,
   refreshListings, listings, lastSaleFor, refreshSales,
-  claimablesFor, holderMarketSummary, connect, mountDioramas,
-} from './market-data.js?v=4';
-import * as MD from './market-data.js?v=4';
+  claimablesFor, holderMarketSummary, connect, onAccountChange, mountDioramas,
+} from './market-data.js?v=5';
+import * as MD from './market-data.js?v=5';
 
 const statusEl = document.getElementById('page-status');
 const earningsEl = document.getElementById('earnings');
@@ -210,6 +210,23 @@ walletLink.addEventListener('click', async e => {
     const w = await connect();
     if (w) { walletLink.textContent = short(MD.account); await loadMine(); }
   } catch { statusEl.textContent = 'wallet connection failed.'; }
+});
+
+onAccountChange(async address => {
+  earningsEl.hidden = true;
+  streakWarn.hidden = true;
+  myPlots = [];
+  myClaimables = new Map();
+  myListings = new Map();
+  if (!address) {
+    statusEl.textContent = 'connect your wallet to see your plots.';
+    holdingsEl.innerHTML = '<p class="quiet-note">connect a wallet to see your plots and rewards.</p>';
+    walletLink.textContent = 'connect wallet';
+    return;
+  }
+  walletLink.textContent = short(address);
+  try { await loadMine(true); }
+  catch { statusEl.textContent = 'could not read this wallet’s land yet — try again.'; }
 });
 
 // auto-connect if a wallet is already authorized

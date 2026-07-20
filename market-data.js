@@ -242,17 +242,43 @@ export function bitmapToIds(words) {
 export let account = null;
 export let walletClient = null;
 let provider = null;
-window.addEventListener('eip6963:announceProvider', e => { provider = provider || e.detail.provider; });
+const accountListeners = new Set();
+export function onAccountChange(listener) {
+  accountListeners.add(listener);
+  return () => accountListeners.delete(listener);
+}
+function notifyAccountChange() {
+  for (const listener of accountListeners) {
+    try { listener(account); } catch {}
+  }
+}
+function watchProvider(next) {
+  if (!next || next === provider) return;
+  provider = next;
+  provider.on?.('accountsChanged', accounts => {
+    account = accounts?.[0] || null;
+    walletClient = account ? walletClient : null;
+    notifyAccountChange();
+  });
+  provider.on?.('disconnect', () => {
+    account = null;
+    walletClient = null;
+    notifyAccountChange();
+  });
+}
+window.addEventListener('eip6963:announceProvider', e => { watchProvider(e.detail.provider); });
 window.dispatchEvent(new Event('eip6963:requestProvider'));
 
 export async function connect() {
   window.dispatchEvent(new Event('eip6963:requestProvider'));
   await new Promise(r => setTimeout(r, 200));
-  provider = provider || window.ethereum;
+  watchProvider(provider || window.ethereum);
   if (!provider) return null;
   walletClient = createWalletClient({ chain, transport: custom(provider) });
   const [addr] = await walletClient.requestAddresses();
+  const changed = account !== (addr || null);
   account = addr || null;
+  if (changed) notifyAccountChange();
   return account ? walletClient : null;
 }
 
