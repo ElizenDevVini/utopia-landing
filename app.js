@@ -17,6 +17,14 @@ const SYMBOLS = NET.symbols;
 const MINE_TOP = '#ffffff';
 const WAD = 10n ** 18n;
 const MAX_CLAIM_BATCH = 64;
+// per-wallet purchase cap, enforced by the site (the next contract enforces it
+// on-chain). Wallets already over the cap keep what they have; they just can't add
+const MAX_PLOTS_PER_WALLET = 8;
+function myPlotCount() {
+  let n = 0;
+  for (let i = 0; i < PLOTS; i++) n += mine[i];
+  return n;
+}
 // utopia token — used to rank access requests by holdings (biggest holders first)
 const UTOPIA_TOKEN = '0x164d9da79722c5294369e79807980e0bff257777';
 // where access requests get sent (form services block crypto solicitation)
@@ -702,6 +710,14 @@ function renderSel() {
     '<div class="row"><span class="k">reward token</span><span class="v">' + SYMBOLS[tokIdx[id]] + '</span></div>' +
     streams;
   if (!owned[id]) {
+    // per-wallet cap: keep the city distributed instead of swept by a few
+    // wallets. UI-enforced on this contract; the next contract enforces on-chain.
+    if (account && myPlotCount() >= MAX_PLOTS_PER_WALLET) {
+      selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + '</h3>' + rows +
+        '<p class="quiet-note">you hold ' + myPlotCount() + ' plots — the per-wallet limit is ' +
+        MAX_PLOTS_PER_WALLET + ' for now, so more of the city goes around.</p>';
+      return;
+    }
     // this plot's reward token must have reserve, or the buy reverts on-chain
     const avail = tokenAvailable(tokIdx[id]);
     const unfunded = avail != null && avail <= 0n;
@@ -813,6 +829,11 @@ async function doTx(act, ids, trigger) {
     let hash_;
     if (act === 'buy') {
       const id = ids[0];
+      if (myPlotCount() >= MAX_PLOTS_PER_WALLET) {
+        txState('per-wallet limit of ' + MAX_PLOTS_PER_WALLET + ' plots reached.', root);
+        if (btn) btn.disabled = false;
+        return;
+      }
       const price = priceNow(id);
       if (paymentBalance != null && paymentBalance < price) {
         const message = NET.payment === 'native'
