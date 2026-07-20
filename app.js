@@ -25,15 +25,17 @@ function myPlotCount() {
   for (let i = 0; i < PLOTS; i++) n += mine[i];
   return n;
 }
-// utopia token — used to rank access requests by holdings (biggest holders first)
+// utopia token — its balance is included as informational request context
 const UTOPIA_TOKEN = '0x164d9da79722c5294369e79807980e0bff257777';
-// where access requests get sent (form services block crypto solicitation)
+// retained historical contact constants; onboarding no longer sends users away
 const ACCESS_HANDLE = '@Utopiadet';
 const ACCESS_HANDLE_URL = 'https://x.com/Utopiadet';
-// optional: paste your Google Apps Script web-app URL here to auto-collect
-// requests into a Sheet. Leave '' to use the copy-to-DM flow only. See
-// contracts/../ACCESS_COLLECTION.md for the 4-line script + deploy steps.
+// Google Apps Script destination for automatic Sheet collection
 const ACCESS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbxCTc6Njp2nRwfXo2t5SbH0jE-Ft9sV0LuQpCG-04ByPlXj1KCWneCp3BJtjjlxXHQP_w/exec';
+const ACCESS_PENDING_COPY = 'setting up access for this wallet — takes about a minute. the buy button will appear on its own.';
+const ELIGIBILITY_POLL_MS = 15000;
+const ACCESS_POLL_MS = 5000;
+const ACCESS_POLL_WINDOW_MS = 3 * 60 * 1000;
 const CLAIMED_TOPIC = '0x3e356ee9071ea983e847cc7da7b8b224b8f44262f7c9ce77262ea0e854a5442c';
 
 // districts: a center core + four quarters, each its own stock. Visual preview
@@ -174,6 +176,14 @@ let tokenAddresses = null;
 let walletStockBalances = null;
 let rewardEnd = null;
 let accountEligible = null;
+let eligibilityReadSequence = 0;
+let eligibilityPollTimer = null;
+let eligibilityPollGeneration = 0;
+let expeditedEligibilityAddress = null;
+let expeditedEligibilityUntil = 0;
+const accessRequestMemory = new Map();
+const pendingAccessAddresses = new Set();
+const accessNoticeShown = new Set();
 
 function priceNow(id) {
   return NET.landVersion === 2 ? (basePrices[id] * multiplier) / WAD : basePrices[id];
@@ -388,17 +398,112 @@ async function refreshWalletStocks() {
   renderHoldings();
 }
 
+function accessRequestKey(address) {
+  return 'utopia:req:' + address.toLowerCase();
+}
+
+function storedAccessRequestAt(address) {
+  const normalized = address.toLowerCase();
+  let stored = accessRequestMemory.get(normalized) || 0;
+  try {
+    const value = Number(localStorage.getItem(accessRequestKey(normalized)) || 0);
+    if (Number.isFinite(value) && value > stored) stored = value;
+  } catch {}
+  return stored;
+}
+
+function rememberAccessRequest(address, requestedAt) {
+  const normalized = address.toLowerCase();
+  accessRequestMemory.set(normalized, requestedAt);
+  try { localStorage.setItem(accessRequestKey(normalized), String(requestedAt)); } catch {}
+}
+
+function eligibilityPollDelay() {
+  const normalized = account?.toLowerCase();
+  return normalized && normalized === expeditedEligibilityAddress && Date.now() < expeditedEligibilityUntil
+    ? ACCESS_POLL_MS
+    : ELIGIBILITY_POLL_MS;
+}
+
+function scheduleEligibilityPoll(delay = eligibilityPollDelay()) {
+  const generation = ++eligibilityPollGeneration;
+  if (eligibilityPollTimer) clearTimeout(eligibilityPollTimer);
+  eligibilityPollTimer = setTimeout(async () => {
+    eligibilityPollTimer = null;
+    if (loaded && !document.hidden && account) await refreshEligibility().catch(() => {});
+    // A request or successful unlock may have replaced this schedule while the
+    // read was in flight. Only the newest scheduler is allowed to continue.
+    if (generation === eligibilityPollGeneration) scheduleEligibilityPoll();
+  }, delay);
+}
+
+function watchPendingAccess(address, requestedAt) {
+  const normalized = address.toLowerCase();
+  pendingAccessAddresses.add(normalized);
+  if (account?.toLowerCase() !== normalized) return;
+  const requestDeadline = requestedAt + ACCESS_POLL_WINDOW_MS;
+  const continuingSameAddress = expeditedEligibilityAddress === normalized;
+  expeditedEligibilityAddress = normalized;
+  expeditedEligibilityUntil = continuingSameAddress
+    ? Math.max(expeditedEligibilityUntil, requestDeadline)
+    : requestDeadline;
+  if (Date.now() < expeditedEligibilityUntil) scheduleEligibilityPoll(ACCESS_POLL_MS);
+}
+
+function maybeAutoRequestAccess(address) {
+  if (!ACCESS_WEBHOOK || !address || accountEligible !== false) return;
+  const normalized = address.toLowerCase();
+  const existingRequestAt = storedAccessRequestAt(normalized);
+  if (existingRequestAt) {
+    if (Date.now() < existingRequestAt + ACCESS_POLL_WINDOW_MS) watchPendingAccess(normalized, existingRequestAt);
+    return;
+  }
+
+  // codex: persist before any balance read or fire-and-forget request so a
+  // reload, duplicate refresh, or accountsChanged race cannot submit twice.
+  const requestedAt = Date.now();
+  rememberAccessRequest(normalized, requestedAt);
+  watchPendingAccess(normalized, requestedAt);
+  requestAccess(null, { automatic: true, address: normalized, requestedAt }).catch(() => {});
+}
+
+function showAccessActiveNote(address) {
+  const normalized = address.toLowerCase();
+  if (accessNoticeShown.has(normalized)) return;
+  accessNoticeShown.add(normalized);
+  const note = document.createElement('p');
+  note.className = 'quiet-note';
+  note.textContent = 'access active — you can buy now';
+  selEl.append(note);
+}
+
 async function refreshEligibility() {
-  if (!NET.requiresEligibility || !account) {
-    accountEligible = NET.requiresEligibility ? null : true;
+  const checkedAddress = account?.toLowerCase() || null;
+  const sequence = ++eligibilityReadSequence;
+  let eligibility;
+  if (!NET.requiresEligibility || !checkedAddress) {
+    eligibility = NET.requiresEligibility ? null : true;
   } else {
-    // null = read failed / unknown (don't hard-block); true/false = confirmed
-    accountEligible = await pub.readContract({
-      address: LAND, abi, functionName: 'isEligible', args: [account],
+    // null = read failed / unknown (don't hard-block or submit); true/false = confirmed
+    eligibility = await pub.readContract({
+      address: LAND, abi, functionName: 'isEligible', args: [checkedAddress],
     }).catch(() => null);
   }
+  if (sequence !== eligibilityReadSequence || (account?.toLowerCase() || null) !== checkedAddress) return;
+  accountEligible = eligibility;
   renderHoldings();
   if (selected >= 0) renderSel();
+  if (accountEligible === false && checkedAddress) maybeAutoRequestAccess(checkedAddress);
+  if (accountEligible === true && checkedAddress && pendingAccessAddresses.has(checkedAddress)) {
+    pendingAccessAddresses.delete(checkedAddress);
+    if (expeditedEligibilityAddress === checkedAddress) {
+      expeditedEligibilityAddress = null;
+      expeditedEligibilityUntil = 0;
+      scheduleEligibilityPoll(ELIGIBILITY_POLL_MS);
+    }
+    if (selected < 0) renderSel();
+    showAccessActiveNote(checkedAddress);
+  }
 }
 
 function orBits(words, out) {
@@ -731,10 +836,11 @@ function renderSel() {
         (funded.length ? ' fundable now: ' + funded.join(', ') + ' plots.' : '') + '</p>';
     } else {
       const label = needsAccess
-        ? 'request access to buy'
+        ? 'setting up access…'
         : account ? 'buy for ' + fmtPrice(priceNow(id)) : 'connect wallet to buy';
       selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + '</h3>' + rows +
         '<button id="' + (needsAccess ? 'reqaccess' : 'act') + '" data-act="buy">' + label + '</button>' +
+        (needsAccess ? '<p class="quiet-note">' + ACCESS_PENDING_COPY + '</p>' : '') +
         '<p class="txstate"></p>';
     }
   } else if (mine[id]) {
@@ -746,7 +852,7 @@ function renderSel() {
       '<div class="row"><span class="k">claimable</span><span class="v">' + (c != null ? fmtTok(c, tokIdx[id]) : '…') + '</span></div>' +
       '<button id="act" data-act="claim"' + (blocked ? ' disabled' : '') + '>' +
       (blocked ? 'eligibility required to claim' : 'claim rewards') + '</button>' +
-      (blocked ? '<p><a href="#" id="reqaccess">request access</a></p>' : '') +
+      (blocked ? '<p><a href="#" id="reqaccess">setting up access…</a></p><p class="quiet-note">' + ACCESS_PENDING_COPY + '</p>' : '') +
       '<p class="txstate"></p>';
   } else {
     selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · owned</h3>' + rows +
@@ -921,7 +1027,7 @@ async function doTx(act, ids, trigger) {
     if (/eligib|NotEligible|not eligible/i.test(m)) {
       accountEligible = false;
       renderSel();
-      txState('wallet not approved yet. request access below.', root);
+      txState('setting up access for this wallet — the buy button will appear on its own.', root);
       return;
     }
     txState(/rejected|denied/i.test(m) ? 'cancelled.' : m.toLowerCase().slice(0, 240), root);
@@ -935,32 +1041,37 @@ selEl.addEventListener('click', e => {
   if (btn && selected >= 0) doTx(btn.dataset.act, [selected], btn);
 });
 
-// send an access request to Formspree, tagged with the wallet's $utopia holdings
-async function requestAccess(btn) {
-  if (!account) {
+// Send the connected address to the Sheet. Automatic submissions are guarded;
+// explicit clicks intentionally remain available as fire-and-forget retries.
+async function requestAccess(btn, options = {}) {
+  if (!account && !options.address) {
     try { await connect({ prompt: true }); } catch {}
     if (!account) return;
   }
+  const requestedAddress = (options.address || account)?.toLowerCase();
+  if (!requestedAddress) return;
   if (btn) btn.disabled = true;
+  if (!ACCESS_WEBHOOK) {
+    if (account?.toLowerCase() === requestedAddress) {
+      selEl.innerHTML = '<h3>access setup</h3><p class="quiet-note">access setup is temporarily unavailable. try again shortly.</p>';
+    }
+    return;
+  }
+  const requestedAt = options.requestedAt || Date.now();
+  if (!options.automatic) rememberAccessRequest(requestedAddress, requestedAt);
+  watchPendingAccess(requestedAddress, requestedAt);
   let held = 0;
   try {
-    const bal = await pub.readContract({ address: UTOPIA_TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [account] });
+    const bal = await pub.readContract({ address: UTOPIA_TOKEN, abi: erc20Abi, functionName: 'balanceOf', args: [requestedAddress] });
     held = Number(bal) / 1e18;
   } catch {}
-  const line = account + ' · ' + held.toLocaleString() + ' $UTOPIA';
-  // auto-collect to your own endpoint if configured (no-cors: fire-and-forget)
-  if (ACCESS_WEBHOOK) {
-    fetch(ACCESS_WEBHOOK, {
-      method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ wallet: account, utopiaHeld: held, at: Date.now() }),
-    }).catch(() => {});
+  fetch(ACCESS_WEBHOOK, {
+    method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ wallet: requestedAddress, utopiaHeld: held, at: Date.now() }),
+  }).catch(() => {});
+  if (account?.toLowerCase() === requestedAddress) {
+    selEl.innerHTML = '<h3>setting up access</h3><p class="quiet-note">' + ACCESS_PENDING_COPY + '</p>';
   }
-  try { await navigator.clipboard.writeText(line); } catch {}
-  selEl.innerHTML = '<h3>request access</h3>' +
-    '<p class="quiet-note">' + (ACCESS_WEBHOOK ? 'sent, and copied. ' : 'copied. ') +
-    'send it to <a href="' + ACCESS_HANDLE_URL + '" target="_blank" rel="noopener">' +
-    ACCESS_HANDLE + '</a> to get approved. bigger $utopia holders go first.</p>' +
-    '<p class="quiet-note" style="word-break:break-all">' + line + '</p>';
 }
 
 // ---- holdings ----
@@ -988,7 +1099,7 @@ function renderHoldings() {
   const eligibility = NET.requiresEligibility
     ? '<div class="row"><span class="k">eligibility</span><span class="v">' +
       (accountEligible === true ? 'active' : accountEligible === false
-        ? '<a href="#" id="reqaccess">required · request access</a>' : 'checking…') +
+        ? '<a href="#" id="reqaccess">setting up · opens automatically</a>' : 'checking…') +
       '</span></div>'
     : '';
   const portfolio = walletStocksHtml();
@@ -1174,9 +1285,9 @@ if (fine) {
 
 setInterval(() => { if (loaded && !document.hidden) refreshOwnership().catch(() => {}); }, 10000);
 setInterval(() => { if (loaded && !document.hidden && account) refreshClaimables().catch(() => {}); }, 10000);
-// codex: eligibility can be granted while the dashboard is already open; do
-// not leave a previously-false wallet blocked until it reconnects or reloads.
-setInterval(() => { if (loaded && !document.hidden && account) refreshEligibility().catch(() => {}); }, 15000);
+// codex: one scheduler accelerates pending access without overlapping the
+// normal refresh or leaving an open dashboard blocked after enrollment.
+scheduleEligibilityPoll(ELIGIBILITY_POLL_MS);
 setInterval(() => { if (loaded && !document.hidden) refreshTreasury().catch(() => {}); }, 60000);
 
 window.addEventListener('resize', () => { fit(); schedule(); });

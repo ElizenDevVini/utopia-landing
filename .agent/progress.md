@@ -83,3 +83,11 @@
 - Landing and dashboard identify legacy deeds and link to their actual source contract.
 - Mixed-wallet fork claim paid successfully; legacy-only and normal post-buy regressions passed.
 - Live browser state during final smoke: 24 total plots, 19 current and 5 legacy.
+
+## Codex automatic onboarding — 2026-07-19
+
+- Done: guarded auto-request, automatic-access copy, accelerated eligibility polling, activation note, and cache bump.
+- Verified: confirmed-false connect/accountsChanged submission, unknown no-submit, reload persistence, 5s/15s cadence transition, automatic unlock, no transaction methods, and zero browser exceptions.
+- Done: final JavaScript syntax and whitespace checks; protected transaction/cap diff reviewed.
+- Next: commit the five intended tracked files and push only if main remains otherwise clean.
+- Blocked: end-to-end enrollment cannot complete until the separate approver service is deployed.

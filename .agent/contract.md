@@ -72,3 +72,12 @@ Robinhood Stock Tokens that appear in the same wallet.
   prove the receipt, current ownership bitmap, white/mine state, Your Land entry,
   and ownership count all update without reload.
 - Never broadcast this verification purchase to mainnet.
+
+## Codex automatic onboarding — 2026-07-19
+
+- A confirmed-false eligibility read automatically submits the current wallet to the existing webhook once per browser address.
+- Unknown eligibility never submits, and manual request controls remain available as retries.
+- Requested wallets poll every five seconds for at most three minutes, then return to the normal fifteen-second cadence.
+- A true eligibility transition re-renders the buy state and shows one quiet activation note; no buying is automated.
+- Preserve the eight-plot cap, transaction behavior, contracts, network configuration, and premium-district work.
+- Verify with a headless injected wallet and intercepted webhook/eligibility responses; never mutate the live Sheet or broadcast a transaction.

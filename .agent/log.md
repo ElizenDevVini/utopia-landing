@@ -108,3 +108,9 @@
   legacy plot 100 used the old contract link and no current reward copy. Mobile width remained
   390px and Chrome reported zero exceptions.
 - 2026-07-19 [codex]: Final JS/shell syntax, diff, Forge formatting, and 25/25 tests passed.
+- 2026-07-19 [codex]: Started automatic buyer-onboarding work on clean `main`. Verification will intercept the live webhook and eligibility response so no Sheet row or transaction is produced.
+- 2026-07-19 [codex]: Implemented confirmed-false auto-request with a lowercase-address localStorage timestamp guard, manual retry bypass, address-safe eligibility reads, and one non-overlapping 5s/15s scheduler. Removed clipboard/DM onboarding copy and bumped `app.js` to `v=10`.
+- 2026-07-19 [codex]: Headless Chrome loaded the local dashboard against live chain reads with fresh unapproved `0x…dead` and `0x…beef` wallets. The webhook was intercepted: connect and accountsChanged each submitted exactly once; a forced unknown read submitted nothing; reload did not repeat the first request.
+- 2026-07-19 [codex]: Browser timing measured 5,201ms while access was pending and 15,473ms after advancing beyond the three-minute window. A synthetic read-only eligible response showed “access active — you can buy now” and restored the buy button. No transaction method ran and Chrome reported zero JavaScript exceptions.
+- 2026-07-19 [codex]: Site-half verification only. The approver is not deployed, so no end-to-end enrollment completed; no request reached the real Sheet and no chain transaction was broadcast.
+- 2026-07-19 [codex]: Final `node --check app.js` and `git diff --check` passed. The only `doTx` change is the approved copy-only sentence; the eight-plot cap, simulations, writes, contracts, and network configuration are unchanged.
