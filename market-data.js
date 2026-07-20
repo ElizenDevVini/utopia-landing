@@ -9,13 +9,14 @@ import {
 } from './vendor/viem.js?v=12';
 import { NET, MULTICALL3, addressUrl } from './config.js?v=12';
 
-// demo default: the local fork. production sets window.UTOPIA_MARKET.
+// production defaults. reads go through the caching proxy so many visitors
+// don't each hit the public RPC's rate limit; writes use the wallet's own RPC.
+// window.UTOPIA_MARKET can override (e.g. a local fork for testing).
 export const MARKET_CFG = globalThis.UTOPIA_MARKET || {
-  rpc: 'http://localhost:8545',
-  marketplace: '0xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690',
-  // codex: the fork deployment block bounds event history without ever
-  // falling back to a genesis-wide scan. Update this with a redeployment.
-  startBlock: 14412544,
+  rpc: 'https://utopia-rpc-proxy.onrender.com',
+  marketplace: '0x952f537589F75ac1d1ad20433911590c6b545F8e',
+  // the marketplace deployment block bounds event history — never scan from genesis
+  startBlock: 14794571,
 };
 export const LAND = NET.land;
 export const MARKET = MARKET_CFG.marketplace;

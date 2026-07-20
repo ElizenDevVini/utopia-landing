@@ -6,8 +6,8 @@ import {
   fmtEth, short, addressUrl, bitmapToIds, floors,
   refreshListings, listings, lastSaleFor, refreshSales,
   claimablesFor, holderMarketSummary, connect, mountDioramas,
-} from './market-data.js?v=3';
-import * as MD from './market-data.js?v=3';
+} from './market-data.js?v=4';
+import * as MD from './market-data.js?v=4';
 
 const statusEl = document.getElementById('page-status');
 const earningsEl = document.getElementById('earnings');

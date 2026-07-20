@@ -4,7 +4,7 @@ import {
   pub, marketAbi, MARKET, SYMBOLS,
   tokenOf, districtName, coords, fmtEth, short, addressUrl,
   refreshListings, refreshSales, listings, sales,
-} from './market-data.js?v=3';
+} from './market-data.js?v=4';
 
 const statusEl = document.getElementById('page-status');
 const feedEl = document.querySelector('#feed .body');
