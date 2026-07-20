@@ -29,7 +29,7 @@ contract MarketplaceForkTest is Test {
         address seller = land.ownerOf(PLOT);
         require(land.isEligible(seller), "seller not eligible");
 
-        UtopiaMarketplace market = new UtopiaMarketplace(LAND, 300, SAFE, address(this));
+        UtopiaMarketplace market = new UtopiaMarketplace(LAND, 100, 200, SAFE, address(this));
 
         // seller approves + lists
         vm.prank(seller);
@@ -50,7 +50,7 @@ contract MarketplaceForkTest is Test {
 
         assertEq(land.ownerOf(PLOT), buyer); // deed moved on real contract
         assertEq(seller.balance, sellerBefore + 0.05 ether - 0.0015 ether); // 97%
-        assertEq(market.accruedFees(), 0.0015 ether); // 3%
+        assertEq(market.accruedFees(), 0.0005 ether); // operator 1%
         assertEq(land.claimable(PLOT), owedBefore); // rewards followed the deed
     }
 }
