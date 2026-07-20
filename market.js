@@ -188,7 +188,12 @@ function render() {
 
   // the deeds: certificate cards, cheapest first, filtered by chosen stock
   const filtered = stockFilter === 'all' ? listings : listings.filter(l => SYMBOLS[tokenOf(l.id)] === stockFilter);
-  const byPrice = [...filtered].sort((a, b) => (a.price < b.price ? -1 : 1));
+  const sortMode = document.getElementById('sort')?.value || 'price-asc';
+  const byPrice = [...filtered].sort((a, b) => {
+    if (sortMode === 'price-desc') return a.price < b.price ? 1 : -1;
+    if (sortMode === 'yield-desc') return annualYield(b.id) < annualYield(a.id) ? -1 : 1;
+    return a.price < b.price ? -1 : 1;
+  });
   const DCOLORS = ['#e3c67b', '#6f9fd0', '#9ec4e8', '#4d7db0', '#c3dcf3'];
   const dIdx = id => { const x = id % SIDE, y = (id / SIDE) | 0, dx = x - 15.5, dy = y - 15.5;
     if (dx * dx + dy * dy < 64) return 0; if (dx < 0 && dy < 0) return 1; if (dx >= 0 && dy < 0) return 2; if (dx < 0 && dy >= 0) return 3; return 4; };
@@ -325,33 +330,88 @@ async function connect() {
 }
 walletLink.addEventListener('click', async e => { e.preventDefault(); try { await connect(); } catch {} });
 
-listingsEl.addEventListener('click', async e => {
-  const buyBtn = e.target.closest('[data-buy]');
-  const cancelBtn = e.target.closest('[data-cancel]');
-  if (!buyBtn && !cancelBtn) return;
-  const id = Number((buyBtn || cancelBtn).dataset.buy || (buyBtn || cancelBtn).dataset.cancel);
-  const txEl = document.getElementById('tx-' + id);
+// ---- buy flow: confirm sheet with fee breakdown + preflight checks ----
+const confirmEl = document.getElementById('confirm');
+const eligAbi = parseAbi(['function isEligible(address) view returns (bool)']);
+
+async function openConfirm(id, price) {
+  const w = walletClient || await connect();
+  if (!w) return;
+  confirmEl.hidden = false;
+  confirmEl.innerHTML = '<div class="confirm-card"><p class="quiet-note">checking…</p></div>';
+  // preflight: eligibility + native ETH balance (the two real-world failures)
+  let eligible = null, balance = null;
+  try {
+    [eligible, balance] = await Promise.all([
+      pub.readContract({ address: LAND, abi: eligAbi, functionName: 'isEligible', args: [account] }),
+      pub.getBalance({ address: account }),
+    ]);
+  } catch {}
+  const fee = BigInt(price) * 300n / 10000n;
+  const toHolders = BigInt(price) * 200n / 10000n;
+  let blocker = '';
+  if (eligible === false) {
+    blocker = '<p class="confirm-block">this wallet isn’t approved yet. open the <a href="app.html">dashboard</a> — access sets up automatically in about a minute, then come back.</p>';
+  } else if (balance != null && balance < BigInt(price)) {
+    blocker = '<p class="confirm-block">not enough native ETH on robinhood chain. if your bridge gave you WETH, unwrap it — plots are paid for in native ETH.</p>';
+  }
+  confirmEl.innerHTML =
+    '<div class="confirm-card">' +
+      '<h3>acquire plot ' + id + '</h3>' +
+      '<dl class="confirm-rows">' +
+        '<div><dt>you pay</dt><dd>' + fmtEth(price) + '</dd></div>' +
+        '<div><dt>streams</dt><dd>' + SYMBOLS[tokenOf(id)] + ' · ' + (apyOf(id) / 100).toFixed(2) + '%</dd></div>' +
+        '<div><dt>seller receives</dt><dd>' + fmtEth(BigInt(price) - fee) + '</dd></div>' +
+        '<div><dt>shared with all landholders</dt><dd class="gold">' + fmtEth(toHolders) + '</dd></div>' +
+      '</dl>' +
+      (blocker ||
+        '<button class="act buy confirm-go" data-go="' + id + '" data-price="' + price + '">confirm · ' + fmtEth(price) + '<span class="arr">→</span></button>') +
+      '<button class="confirm-close" data-close>close</button>' +
+      '<p class="tx" id="confirm-tx"></p>' +
+    '</div>';
+}
+
+confirmEl.addEventListener('click', async e => {
+  if (e.target.closest('[data-close]') || e.target === confirmEl) { confirmEl.hidden = true; return; }
+  const go = e.target.closest('[data-go]');
+  if (!go) return;
+  const id = Number(go.dataset.go);
+  const txEl = document.getElementById('confirm-tx');
   try {
     const w = walletClient || await connect();
     if (!w) return;
-    if (buyBtn) {
-      txEl.textContent = 'confirm in your wallet…';
-      const { request } = await pub.simulateContract({ address: MARKET, abi: marketAbi, functionName: 'buy', args: [BigInt(id)], value: BigInt(buyBtn.dataset.price), account });
-      const hash = await w.writeContract(request);
-      txEl.textContent = 'buying…';
-      await pub.waitForTransactionReceipt({ hash });
-      txEl.textContent = 'bought. the deed is yours.';
-    } else {
-      const { request } = await pub.simulateContract({ address: MARKET, abi: marketAbi, functionName: 'cancel', args: [BigInt(id)], account });
-      const hash = await w.writeContract(request);
-      await pub.waitForTransactionReceipt({ hash });
-      txEl.textContent = 'listing cancelled.';
-    }
+    txEl.textContent = 'confirm in your wallet…';
+    const { request } = await pub.simulateContract({ address: MARKET, abi: marketAbi, functionName: 'buy', args: [BigInt(id)], value: BigInt(go.dataset.price), account });
+    const hash = await w.writeContract(request);
+    txEl.textContent = 'buying…';
+    await pub.waitForTransactionReceipt({ hash });
+    txEl.innerHTML = 'the deed is yours. <a href="my-land.html">see it in my land →</a>';
     await loadListings();
   } catch (err) {
     txEl.textContent = (err?.shortMessage || 'failed').toLowerCase().slice(0, 120);
   }
 });
+
+listingsEl.addEventListener('click', async e => {
+  const buyBtn = e.target.closest('[data-buy]');
+  const cancelBtn = e.target.closest('[data-cancel]');
+  if (buyBtn) { openConfirm(Number(buyBtn.dataset.buy), buyBtn.dataset.price); return; }
+  if (!cancelBtn) return;
+  const id = Number(cancelBtn.dataset.cancel);
+  const txEl = document.getElementById('tx-' + id);
+  try {
+    const w = walletClient || await connect();
+    if (!w) return;
+    const { request } = await pub.simulateContract({ address: MARKET, abi: marketAbi, functionName: 'cancel', args: [BigInt(id)], account });
+    const hash = await w.writeContract(request);
+    await pub.waitForTransactionReceipt({ hash });
+    txEl.textContent = 'listing cancelled.';
+    await loadListings();
+  } catch (err) {
+    txEl.textContent = (err?.shortMessage || 'failed').toLowerCase().slice(0, 120);
+  }
+});
+document.getElementById('sort').addEventListener('change', render);
 
 document.getElementById('stock-tabs').addEventListener('click', e => {
   const tab = e.target.closest('.tab');

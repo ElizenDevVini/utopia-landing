@@ -14,7 +14,12 @@
 <header class="bar market-bar">
   <a class="wordmark" href="./">utopia</a>
   <span class="crumb">land registry &amp; exchange</span>
-  <a class="xlink" href="app.html">dashboard</a>
+  <nav class="mkt-nav">
+    <a href="market.html" class="here">market</a>
+    <a href="my-land.html">my land</a>
+    <a href="activity.html">activity</a>
+    <a href="app.html">dashboard</a>
+  </nav>
   <a href="#" id="wallet">connect wallet</a>
 </header>
 
@@ -60,6 +65,7 @@
     </aside>
 
     <section id="listings" class="deeds">
+      <div class="browse-controls">
       <nav class="stock-tabs" id="stock-tabs" aria-label="filter by stock">
         <button class="tab active" data-stock="all">all</button>
         <button class="tab" data-stock="TSLA">TSLA</button>
@@ -68,7 +74,14 @@
         <button class="tab" data-stock="MSFT">MSFT</button>
         <button class="tab" data-stock="AMZN">AMZN</button>
       </nav>
+      <select id="sort" class="sort-select" aria-label="sort listings">
+        <option value="price-asc">price · low to high</option>
+        <option value="price-desc">price · high to low</option>
+        <option value="yield-desc">yield · highest first</option>
+      </select>
+      </div>
       <div class="body"><p class="quiet-note">reading listings…</p></div>
+      <div class="confirm-overlay" id="confirm" hidden></div>
     </section>
 
   </div>

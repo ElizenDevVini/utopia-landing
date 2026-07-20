@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>utopia — activity</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c2340'/%3E%3Cpath d='M16 7 27 13.5 16 20 5 13.5Z' fill='%23e9f2fb'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="market.css">
+</head>
+<body class="market-body">
+
+<header class="bar market-bar">
+  <a class="wordmark" href="./">utopia</a>
+  <span class="crumb">activity</span>
+  <nav class="mkt-nav">
+    <a href="market.html">market</a>
+    <a href="my-land.html">my land</a>
+    <a href="activity.html" class="here">activity</a>
+    <a href="app.html">dashboard</a>
+  </nav>
+  <a href="market.html" id="wallet" class="quiet-link">browse</a>
+</header>
+
+<main class="market-page">
+
+  <section class="registry-head slim">
+    <p class="registry-kicker">the utopia registry</p>
+    <h1>The city, trading.</h1>
+    <p class="registry-status" id="page-status">reading recent activity…</p>
+  </section>
+
+  <section class="earnings-bar" id="headline">
+    <div class="earn-cell"><span>paid to landholders</span><strong id="a-paid" class="gold">—</strong></div>
+    <div class="earn-cell"><span>volume traded</span><strong id="a-volume">—</strong></div>
+    <div class="earn-cell"><span>sales</span><strong id="a-sales">—</strong></div>
+    <div class="earn-cell"><span>listed now</span><strong id="a-listed">—</strong></div>
+  </section>
+
+  <section id="feed" class="feed">
+    <div class="body"><p class="quiet-note">reading…</p></div>
+  </section>
+
+  <p class="market-foot">every trade pays every landholder · all of it verifiable on the explorer</p>
+</main>
+
+<script type="module" src="activity.js?v=1"></script>
+</body>
+</html>

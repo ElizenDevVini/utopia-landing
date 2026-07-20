@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>utopia — my land</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c2340'/%3E%3Cpath d='M16 7 27 13.5 16 20 5 13.5Z' fill='%23e9f2fb'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="market.css">
+</head>
+<body class="market-body">
+
+<header class="bar market-bar">
+  <a class="wordmark" href="./">utopia</a>
+  <span class="crumb">my land</span>
+  <nav class="mkt-nav">
+    <a href="market.html">market</a>
+    <a href="my-land.html" class="here">my land</a>
+    <a href="activity.html">activity</a>
+    <a href="app.html">dashboard</a>
+  </nav>
+  <a href="#" id="wallet">connect wallet</a>
+</header>
+
+<main class="market-page">
+
+  <section class="registry-head slim">
+    <p class="registry-kicker">the utopia registry</p>
+    <h1>My land.</h1>
+    <p class="registry-status" id="page-status">connect your wallet to see your plots.</p>
+  </section>
+
+  <section id="earnings" class="earnings-bar" hidden>
+    <div class="earn-cell"><span>plots held</span><strong id="e-plots">—</strong></div>
+    <div class="earn-cell"><span>earned from trading</span><strong id="e-earned" class="gold">—</strong></div>
+    <div class="earn-cell"><span>loyalty</span><strong id="e-tier">—</strong><em id="e-streak"></em></div>
+    <div class="earn-cell earn-action"><button class="act pay-claim" id="claim-rewards" hidden>claim</button></div>
+  </section>
+  <p class="pay-warning center" id="streak-warning" hidden>selling any plot resets your loyalty streak.</p>
+
+  <section id="holdings" class="deeds">
+    <div class="body"></div>
+  </section>
+
+  <p class="market-foot">your deeds stay in your wallet · listing needs a one-time approval · 3% registry fee on sales</p>
+</main>
+
+<script type="module" src="my-land.js?v=1"></script>
+</body>
+</html>
