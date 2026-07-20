@@ -4,21 +4,27 @@ import {
   pub, marketAbi, MARKET, SYMBOLS,
   tokenOf, districtName, coords, fmtEth, short, addressUrl,
   refreshListings, refreshSales, listings, sales,
-} from './market-data.js?v=1';
+} from './market-data.js?v=3';
 
 const statusEl = document.getElementById('page-status');
 const feedEl = document.querySelector('#feed .body');
 
 async function load() {
   try {
-    const [paid] = await Promise.all([
-      pub.readContract({ address: MARKET, abi: marketAbi, functionName: 'totalPaidToHolders' }),
+    const [poolFeeBps] = await Promise.all([
+      pub.readContract({ address: MARKET, abi: marketAbi, functionName: 'poolFeeBps' }),
       refreshSales(),
       refreshListings(),
     ]);
     let volume = 0n;
-    for (const s of sales) volume += s.price;
-    document.getElementById('a-paid').textContent = fmtEth(paid);
+    let generatedForHolders = 0n;
+    for (const s of sales) {
+      volume += s.price;
+      generatedForHolders += (s.price * poolFeeBps) / 10000n;
+    }
+    // This headline is activity-generated holder value, so it moves on sale;
+    // totalPaidToHolders only moves later when individual holders claim.
+    document.getElementById('a-paid').textContent = fmtEth(generatedForHolders);
     document.getElementById('a-volume').textContent = fmtEth(volume);
     document.getElementById('a-sales').textContent = sales.length;
     document.getElementById('a-listed').textContent = listings.length;

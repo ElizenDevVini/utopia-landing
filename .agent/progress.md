@@ -98,3 +98,11 @@
 - Done: synchronized the requested cache tags to `v=12`; JavaScript syntax and diff checks pass.
 - Next: commit the intended tracked files and push only from the otherwise-clean `main` worktree.
 - Safety: no signing, transaction broadcast, funds, contract changes, webhook writes, or frontend logic changes occurred.
+
+## Codex marketplace loop — 2026-07-20
+
+- Done: stopped after round 3 with all nine criteria green; final Forge, fork,
+  connected-wallet, transaction, read-scale, console, and mobile checks passed.
+- Done: committed only marketplace and Codex state/log files on `marketplace`;
+  no push because unrelated dashboard edits remain in the worktree.
+- Safety: local Anvil and local static server only; unrelated dashboard edits preserved.

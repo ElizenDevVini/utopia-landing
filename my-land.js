@@ -5,9 +5,9 @@ import {
   tokenOf, apyOf, annualYield, districtIdx, districtName, DCOLORS, coords,
   fmtEth, short, addressUrl, bitmapToIds, floors,
   refreshListings, listings, lastSaleFor, refreshSales,
-  connect, mountDioramas,
-} from './market-data.js?v=1';
-import * as MD from './market-data.js?v=1';
+  claimablesFor, holderMarketSummary, connect, mountDioramas,
+} from './market-data.js?v=3';
+import * as MD from './market-data.js?v=3';
 
 const statusEl = document.getElementById('page-status');
 const earningsEl = document.getElementById('earnings');
@@ -20,20 +20,18 @@ let myPlots = []; // ids
 let myClaimables = new Map(); // id -> stock wei
 let myListings = new Map(); // id -> price
 
-async function loadMine() {
+async function loadMine(forceMarket = false) {
   if (!MD.account) return;
   statusEl.textContent = 'reading your land…';
   const [words] = await Promise.all([
     pub.readContract({ address: LAND, abi: landAbi, functionName: 'plotsOf', args: [MD.account] }),
-    refreshListings().catch(() => {}),
-    refreshSales().catch(() => {}),
+    refreshListings(forceMarket).catch(() => {}),
+    refreshSales(forceMarket).catch(() => {}),
   ]);
   myPlots = bitmapToIds(words);
   myListings = new Map(listings.filter(l => l.seller.toLowerCase() === MD.account.toLowerCase()).map(l => [l.id, l.price]));
   // accrued stock per plot, batched
-  const vals = await Promise.all(myPlots.map(id =>
-    pub.readContract({ address: LAND, abi: landAbi, functionName: 'claimable', args: [BigInt(id)] }).catch(() => null)
-  ));
+  const vals = await claimablesFor(myPlots);
   myClaimables = new Map(myPlots.map((id, i) => [id, vals[i]]));
   await refreshEarnings();
   render();
@@ -41,11 +39,7 @@ async function loadMine() {
 
 async function refreshEarnings() {
   try {
-    const [claimable, multBps, since] = await Promise.all([
-      pub.readContract({ address: MARKET, abi: marketAbi, functionName: 'claimableRewards', args: [MD.account] }),
-      pub.readContract({ address: MARKET, abi: marketAbi, functionName: 'loyaltyMultiplierBps', args: [MD.account] }),
-      pub.readContract({ address: MARKET, abi: marketAbi, functionName: 'loyaltySince', args: [MD.account] }),
-    ]);
+    const { claimable, multiplierBps: multBps, loyaltySince: since } = await holderMarketSummary(MD.account);
     earningsEl.hidden = false;
     streakWarn.hidden = false;
     document.getElementById('e-plots').textContent = myPlots.length;
@@ -159,7 +153,7 @@ async function doList(id, isReprice) {
     const h2 = await w.writeContract(request);
     await pub.waitForTransactionReceipt({ hash: h2 });
     txEl.textContent = isReprice ? 'price updated.' : 'listed. buyers can now acquire this deed.';
-    await loadMine();
+    await loadMine(true);
   } catch (err) {
     txEl.textContent = (err?.shortMessage || 'failed').toLowerCase().slice(0, 120);
   }
@@ -177,7 +171,7 @@ async function doCancel(id) {
     txEl.textContent = 'delisting…';
     await pub.waitForTransactionReceipt({ hash: h });
     txEl.textContent = 'delisted.';
-    await loadMine();
+    await loadMine(true);
   } catch (err) {
     txEl.textContent = (err?.shortMessage || 'failed').toLowerCase().slice(0, 120);
   }
