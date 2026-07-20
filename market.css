@@ -121,3 +121,23 @@
 @keyframes deal-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
 .deed.deal-in { animation: deal-in 0.55s cubic-bezier(0.2,0.7,0.2,1) both; }
 @media (prefers-reduced-motion: reduce) { .deed.deal-in { animation: none; } }
+
+/* stock filter tabs */
+.stock-tabs { display: flex; gap: 0.4rem; margin: 0 0 1rem; flex-wrap: wrap; }
+.stock-tabs .tab { font: inherit; font-size: 0.78rem; letter-spacing: 0.08em; padding: 0.35rem 0.85rem;
+  background: transparent; border: 1px solid rgba(140,170,210,0.25); color: #9db8d6; cursor: pointer; border-radius: 2px;
+  transition: all 0.2s; }
+.stock-tabs .tab:hover { border-color: rgba(227,198,123,0.4); color: #dfeaf6; }
+.stock-tabs .tab.active { background: #e3c67b; border-color: #e3c67b; color: #0c2340; }
+
+/* payroll + city books */
+.pay-row { display: flex; justify-content: space-between; align-items: baseline; padding: 0.4rem 0;
+  border-top: 1px solid rgba(140,170,210,0.12); font-size: 0.85rem; color: #9db8d6; }
+.pay-row:first-child { border-top: none; }
+.pay-row strong { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 1.05rem; color: #dfeaf6; }
+.pay-row strong.gold, .pay-row .gold { color: #e3c67b; }
+.pay-streak { font-size: 0.74rem; color: #8fb0d4; margin: 0.3rem 0 0; }
+.pay-warning { font-size: 0.7rem; color: #b08585; margin: 0.55rem 0 0; font-style: italic; }
+.act.pay-claim { margin-top: 0.7rem; width: 100%; border: 1px solid rgba(227,198,123,0.5); color: #e3c67b;
+  padding: 0.5rem; justify-content: center; }
+.act.pay-claim:hover { background: #e3c67b; color: #0c2340; }

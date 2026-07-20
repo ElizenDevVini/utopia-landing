@@ -12,7 +12,7 @@ import { NET, addressUrl } from './config.js?v=12';
 // window.UTOPIA_MARKET = { rpc, marketplace } to override for mainnet ---
 const MARKET_CFG = globalThis.UTOPIA_MARKET || {
   rpc: 'http://localhost:8545',
-  marketplace: '0x67d269191c92Caf3cD7723F116c85e6E9bf55933',
+  marketplace: '0xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690',
 };
 const LAND = NET.land;
 const MARKET = MARKET_CFG.marketplace;
@@ -32,8 +32,21 @@ const marketAbi = parseAbi([
   'function cancel(uint256 tokenId)',
   'function isListingValid(uint256 tokenId) view returns (bool)',
   'function listings(uint256) view returns (address seller, uint96 price)',
-  'function feeBps() view returns (uint256)',
+  'function claimRewards()',
+  'function pokeCheckpoint(address holder)',
+  'function claimableRewards(address holder) view returns (uint256)',
+  'function loyaltyMultiplierBps(address holder) view returns (uint256)',
+  'function loyaltySince(address holder) view returns (uint256)',
+  'function totalPaidToHolders() view returns (uint256)',
+  'function operatorFeeBps() view returns (uint256)',
+  'function poolFeeBps() view returns (uint256)',
 ]);
+const SOLD = { type: 'event', name: 'Sold', inputs: [
+  { indexed: true, name: 'tokenId', type: 'uint256' },
+  { indexed: true, name: 'seller', type: 'address' },
+  { indexed: true, name: 'buyer', type: 'address' },
+  { indexed: false, name: 'price', type: 'uint256' },
+  { indexed: false, name: 'fee', type: 'uint256' } ] };
 const LISTED = { type: 'event', name: 'Listed', inputs: [
   { indexed: true, name: 'tokenId', type: 'uint256' },
   { indexed: true, name: 'seller', type: 'address' },
@@ -70,10 +83,79 @@ const statusEl = document.getElementById('market-status');
 const earnersEl = document.querySelector('#earners .body');
 const listingsEl = document.querySelector('#listings .body');
 const sellersEl = document.querySelector('#sellers .body');
+const payrollEl = document.querySelector('#payroll .body');
+const statsEl = document.querySelector('#citystats .body');
 const walletLink = document.getElementById('wallet');
 
 let account = null;
 let listings = []; // {id, seller, price}
+let stockFilter = 'all';
+
+// ---- your land pays you: fee-share rewards + loyalty tier ----
+const TIER1 = 30 * 86400, TIER2 = 90 * 86400;
+async function refreshPayroll() {
+  if (!account) return;
+  try {
+    const [claimable, multBps, since] = await Promise.all([
+      pub.readContract({ address: MARKET, abi: marketAbi, functionName: 'claimableRewards', args: [account] }),
+      pub.readContract({ address: MARKET, abi: marketAbi, functionName: 'loyaltyMultiplierBps', args: [account] }),
+      pub.readContract({ address: MARKET, abi: marketAbi, functionName: 'loyaltySince', args: [account] }),
+    ]);
+    const mult = Number(multBps) / 10000;
+    let streak = '';
+    if (Number(since) > 0) {
+      const held = Math.floor(Date.now() / 1000) - Number(since);
+      const days = Math.floor(held / 86400);
+      if (held < TIER1) streak = 'held ' + days + 'd — 1.5× at 30 days';
+      else if (held < TIER2) streak = 'held ' + days + 'd — 2.0× at 90 days';
+      else streak = 'held ' + days + 'd — max tier';
+    }
+    payrollEl.innerHTML =
+      '<div class="pay-row"><span>earned from trading</span><strong>' + fmtEth(claimable) + '</strong></div>' +
+      '<div class="pay-row"><span>loyalty</span><strong>' + mult.toFixed(1) + '×</strong></div>' +
+      (streak ? '<p class="pay-streak">' + streak + '</p>' : '') +
+      (claimable > 0n
+        ? '<button class="act pay-claim" id="claim-rewards">claim ' + fmtEth(claimable) + '</button>'
+        : '<p class="quiet-note">rewards build as the city trades.</p>') +
+      '<p class="pay-warning">selling any plot resets your streak.</p>';
+  } catch {
+    payrollEl.innerHTML = '<p class="quiet-note">could not read rewards.</p>';
+  }
+}
+payrollEl.addEventListener('click', async e => {
+  if (!e.target.closest('#claim-rewards')) return;
+  try {
+    const w = walletClient || await connect();
+    if (!w) return;
+    const { request } = await pub.simulateContract({ address: MARKET, abi: marketAbi, functionName: 'claimRewards', account });
+    const hash = await w.writeContract(request);
+    e.target.textContent = 'claiming…';
+    await pub.waitForTransactionReceipt({ hash });
+    await refreshPayroll(); await refreshStats();
+  } catch (err) {
+    e.target.textContent = (err?.shortMessage || 'failed').toLowerCase().slice(0, 60);
+  }
+});
+
+// ---- the city's books: floor, volume, paid to holders ----
+async function refreshStats() {
+  try {
+    const [paid, soldLogs] = await Promise.all([
+      pub.readContract({ address: MARKET, abi: marketAbi, functionName: 'totalPaidToHolders' }),
+      pub.getLogs({ address: MARKET, event: SOLD, fromBlock: 0n, toBlock: 'latest' }),
+    ]);
+    let volume = 0n, lastSale = null;
+    for (const l of soldLogs) { volume += l.args.price; lastSale = l.args.price; }
+    const floor = listings.length ? listings.reduce((m, l) => l.price < m ? l.price : m, listings[0].price) : null;
+    statsEl.innerHTML =
+      '<div class="pay-row"><span>floor</span><strong>' + (floor != null ? fmtEth(floor) : '—') + '</strong></div>' +
+      '<div class="pay-row"><span>last sale</span><strong>' + (lastSale != null ? fmtEth(lastSale) : '—') + '</strong></div>' +
+      '<div class="pay-row"><span>volume traded</span><strong>' + fmtEth(volume) + '</strong></div>' +
+      '<div class="pay-row"><span>paid to holders</span><strong class="gold">' + fmtEth(paid) + '</strong></div>';
+  } catch {
+    statsEl.innerHTML = '<p class="quiet-note">could not read the books.</p>';
+  }
+}
 
 async function loadListings() {
   // every Listed event, then keep only the ones still valid on-chain
@@ -104,8 +186,9 @@ function render() {
     '<span class="val">' + fmtEth(annualYield(l.id)) + ' / yr</span>' +
     '<span class="sub">' + SYMBOLS[tokenOf(l.id)] + ' · ' + (apyOf(l.id) / 100).toFixed(2) + '%</span></li>').join('') + '</ol>';
 
-  // the deeds: certificate cards, cheapest first
-  const byPrice = [...listings].sort((a, b) => (a.price < b.price ? -1 : 1));
+  // the deeds: certificate cards, cheapest first, filtered by chosen stock
+  const filtered = stockFilter === 'all' ? listings : listings.filter(l => SYMBOLS[tokenOf(l.id)] === stockFilter);
+  const byPrice = [...filtered].sort((a, b) => (a.price < b.price ? -1 : 1));
   const DCOLORS = ['#e3c67b', '#6f9fd0', '#9ec4e8', '#4d7db0', '#c3dcf3'];
   const dIdx = id => { const x = id % SIDE, y = (id / SIDE) | 0, dx = x - 15.5, dy = y - 15.5;
     if (dx * dx + dy * dy < 64) return 0; if (dx < 0 && dy < 0) return 1; if (dx >= 0 && dy < 0) return 2; if (dx < 0 && dy >= 0) return 3; return 4; };
@@ -138,7 +221,7 @@ function render() {
           : '<button class="act buy" data-buy="' + l.id + '" data-price="' + l.price + '">acquire<span class="arr">→</span></button>') +
       '</div>' +
       '<p class="tx" id="tx-' + l.id + '"></p></article>';
-  }).join('');
+  }).join('') || '<p class="quiet-note">nothing listed for this stock right now.</p>';
   // staggered reveal
   [...listingsEl.querySelectorAll('.deed')].forEach((el, i) => {
     el.style.animationDelay = (i * 60) + 'ms';
@@ -237,7 +320,7 @@ async function connect() {
   if (!provider) { statusEl.textContent = 'install a wallet to trade.'; return null; }
   walletClient = createWalletClient({ chain, transport: custom(provider) });
   const [addr] = await walletClient.requestAddresses();
-  account = addr; walletLink.textContent = short(addr); render();
+  account = addr; walletLink.textContent = short(addr); render(); refreshPayroll().catch(() => {});
   return walletClient;
 }
 walletLink.addEventListener('click', async e => { e.preventDefault(); try { await connect(); } catch {} });
@@ -270,8 +353,17 @@ listingsEl.addEventListener('click', async e => {
   }
 });
 
+document.getElementById('stock-tabs').addEventListener('click', e => {
+  const tab = e.target.closest('.tab');
+  if (!tab) return;
+  stockFilter = tab.dataset.stock;
+  for (const t of document.querySelectorAll('#stock-tabs .tab')) t.classList.toggle('active', t === tab);
+  render();
+});
+
 loadListings().catch(err => { statusEl.textContent = 'could not read the marketplace.'; console.error(err); });
-setInterval(() => loadListings().catch(() => {}), 20000);
+refreshStats().catch(() => {});
+setInterval(() => { loadListings().catch(() => {}); refreshStats().catch(() => {}); if (account) refreshPayroll().catch(() => {}); }, 20000);
 
 // ---- the city at dusk: two parallax layers of skyline drifting past a warm
 // horizon glow, with a few lit windows flickering. calm, cinematic, not busy. ----
