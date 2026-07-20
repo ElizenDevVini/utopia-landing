@@ -97,32 +97,64 @@ function render() {
   statusEl.textContent = listings.length + ' plot' + (listings.length === 1 ? '' : 's') + ' listed by ' +
     new Set(listings.map(l => l.seller.toLowerCase())).size + ' owner' + (new Set(listings.map(l => l.seller.toLowerCase())).size === 1 ? '' : 's') + '.';
 
-  // earns the most: listed plots ranked by annual reward stream
+  // highest streams: listed plots ranked by annual reward stream
   const byYield = [...listings].sort((a, b) => (annualYield(b.id) < annualYield(a.id) ? -1 : 1));
   earnersEl.innerHTML = '<ol class="rank-list">' + byYield.slice(0, 8).map(l =>
     '<li><a href="#plot-' + l.id + '">plot ' + l.id + '</a>' +
-    '<span class="sub">' + SYMBOLS[tokenOf(l.id)] + ' · ' + (apyOf(l.id) / 100).toFixed(2) + '%</span>' +
-    '<span class="val">≈ ' + fmtEth(annualYield(l.id)) + ' / yr</span></li>').join('') + '</ol>';
+    '<span class="val">' + fmtEth(annualYield(l.id)) + ' / yr</span>' +
+    '<span class="sub">' + SYMBOLS[tokenOf(l.id)] + ' · ' + (apyOf(l.id) / 100).toFixed(2) + '%</span></li>').join('') + '</ol>';
 
-  // on the market: full listing cards
+  // the deeds: certificate cards, cheapest first
   const byPrice = [...listings].sort((a, b) => (a.price < b.price ? -1 : 1));
+  const DCOLORS = ['#e3c67b', '#6f9fd0', '#9ec4e8', '#4d7db0', '#c3dcf3'];
+  const dIdx = id => { const x = id % SIDE, y = (id / SIDE) | 0, dx = x - 15.5, dy = y - 15.5;
+    if (dx * dx + dy * dy < 64) return 0; if (dx < 0 && dy < 0) return 1; if (dx >= 0 && dy < 0) return 2; if (dx < 0 && dy >= 0) return 3; return 4; };
   listingsEl.innerHTML = byPrice.map(l => {
     const mine = account && l.seller.toLowerCase() === account.toLowerCase();
-    return '<div class="listing" id="plot-' + l.id + '">' +
-      '<div class="listing-head"><strong>plot ' + l.id + '</strong> ' + coords(l.id) +
-        '<span class="dist">' + districtName(l.id) + '</span></div>' +
-      '<div class="listing-rows">' +
-        '<span>price</span><span>' + fmtEth(l.price) + '</span>' +
-        '<span>reward</span><span>' + SYMBOLS[tokenOf(l.id)] + ' · ' + (apyOf(l.id) / 100).toFixed(2) + '% · ≈ ' + fmtEth(annualYield(l.id)) + '/yr</span>' +
-        '<span>seller</span><span><a href="' + addressUrl(l.seller) + '" target="_blank" rel="noopener">' + short(l.seller) + '</a>' + (mine ? ' · you' : '') + '</span>' +
+    return '<article class="deed" id="plot-' + l.id + '">' +
+      '<div class="deed-top">' +
+        '<div class="deed-title">plot ' + l.id +
+          '<span class="coords">' + coords(l.id) + ' · deed no. ' + String(l.id).padStart(4, '0') + '</span></div>' +
+        '<canvas class="deed-map" width="32" height="32" style="width:64px;height:64px" data-map="' + l.id + '"></canvas>' +
       '</div>' +
+      '<p class="deed-district"><i style="background:' + DCOLORS[dIdx(l.id)] + '"></i>' + districtName(l.id) + '</p>' +
+      '<dl class="deed-rows">' +
+        '<dt>streams</dt><dd>' + SYMBOLS[tokenOf(l.id)] + ' · ' + (apyOf(l.id) / 100).toFixed(2) + '% · ' + fmtEth(annualYield(l.id)) + '/yr</dd>' +
+        '<dt>seller</dt><dd><a href="' + addressUrl(l.seller) + '" target="_blank" rel="noopener">' + short(l.seller) + '</a>' + (mine ? ' · you' : '') + '</dd>' +
+      '</dl>' +
+      '<div class="deed-price"><span class="label">asking</span><span class="amount">' + fmtEth(l.price) + '</span></div>' +
       (mine
         ? '<button class="act cancel" data-cancel="' + l.id + '">cancel listing</button>'
-        : '<button class="act buy" data-buy="' + l.id + '" data-price="' + l.price + '">buy for ' + fmtEth(l.price) + '</button>') +
-      '<p class="tx" id="tx-' + l.id + '"></p></div>';
+        : '<button class="act buy" data-buy="' + l.id + '" data-price="' + l.price + '">acquire this deed</button>') +
+      '<p class="tx" id="tx-' + l.id + '"></p></article>';
   }).join('');
+  drawDeedMaps();
 
   // who's selling
+  drawSellers();
+}
+
+// mini-map stamp: the whole city faint, this plot burning bright
+function drawDeedMaps() {
+  for (const cv of document.querySelectorAll('.deed-map')) {
+    const id = Number(cv.dataset.map);
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#0a1e38'; ctx.fillRect(0, 0, 32, 32);
+    // a faint checker so it reads as the city grid, gold ring only at the core edge
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+      const dx = x - 15.5, dy = y - 15.5, d = dx * dx + dy * dy;
+      if ((x + y) % 2 === 0) { ctx.fillStyle = 'rgba(140,170,210,0.10)'; ctx.fillRect(x, y, 1, 1); }
+      if (d >= 52 && d < 64) { ctx.fillStyle = 'rgba(227,198,123,0.22)'; ctx.fillRect(x, y, 1, 1); }
+    }
+    const px = id % 32, py = (id / 32) | 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(px - 2, py, 2, 1); ctx.fillRect(px + 1, py, 2, 1);
+    ctx.fillRect(px, py - 2, 1, 2); ctx.fillRect(px, py + 1, 1, 2); // surveyor's cross
+    ctx.fillStyle = '#e3c67b'; ctx.fillRect(px, py, 1, 1);
+  }
+}
+
+function drawSellers() {
   const bySeller = new Map();
   for (const l of listings) {
     const s = bySeller.get(l.seller) || { count: 0, floor: l.price };

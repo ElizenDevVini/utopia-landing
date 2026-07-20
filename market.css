@@ -1,31 +1,99 @@
-.market-page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
-.market-intro h1 { font-family: 'Instrument Serif', serif; font-size: 2.4rem; margin: 0 0 0.5rem; }
-.market-intro p { color: #b9cbe0; max-width: 60ch; line-height: 1.5; }
-.market-note { color: #8fb0d4; font-size: 0.85rem; margin-top: 0.6rem; }
+/* dashboard layout; base tokens come from style.css */
 
-.market-grid { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 1rem; margin-top: 2rem; align-items: start; }
-.market-card { background: rgba(20,42,74,0.5); border: 1px solid rgba(140,170,210,0.14); border-radius: 6px; padding: 1.1rem 1.2rem; }
-.market-card h2 { font-family: 'Instrument Serif', serif; font-size: 1.3rem; margin: 0 0 0.8rem; font-weight: 400; }
-@media (max-width: 860px) { .market-grid { grid-template-columns: 1fr; } .market-card.wide { order: -1; } }
+.bar {
+  display: flex;
+  align-items: baseline;
+  gap: 1.4rem;
+  padding: 1.2rem clamp(1.2rem, 3vw, 2.4rem);
+  border-bottom: 1px solid var(--rule);
+}
 
-.rank-list { list-style: none; margin: 0; padding: 0; }
-.rank-list li { display: grid; grid-template-columns: auto 1fr auto; gap: 0.4rem 0.6rem; align-items: baseline;
-  padding: 0.4rem 0; border-top: 1px solid rgba(140,170,210,0.1); font-size: 0.88rem; }
-.rank-list li:first-child { border-top: none; }
-.rank-list a { color: #cfe0f2; }
-.rank-list .sub { grid-column: 1 / 2; color: #7f9bc0; font-size: 0.74rem; }
-.rank-list .val { color: #8ec07c; text-align: right; white-space: nowrap; }
+.bar .wordmark {
+  font-size: 1.3rem;
+  text-decoration: none;
+}
 
-.listing { border: 1px solid rgba(140,170,210,0.16); border-radius: 5px; padding: 0.9rem 1rem; margin-bottom: 0.8rem;
-  background: rgba(12,35,64,0.4); }
-.listing-head { font-size: 0.95rem; color: #e9f2fb; margin-bottom: 0.5rem; }
-.listing-head .dist { float: right; color: #8fb0d4; font-size: 0.76rem; }
-.listing-rows { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.8rem; font-size: 0.82rem; color: #b9cbe0; margin-bottom: 0.7rem; }
-.listing-rows span:nth-child(odd) { color: #7f9bc0; }
-.listing-rows a { color: #b9d3ec; }
-.act { width: 100%; padding: 0.5rem; border-radius: 4px; font: inherit; font-size: 0.86rem; cursor: pointer; border: 1px solid transparent; }
-.act.buy { background: #2f6f4f; color: #eafff2; }
-.act.buy:hover { background: #37845e; }
-.act.cancel { background: transparent; border-color: rgba(200,120,120,0.4); color: #d9a0a0; }
-.tx { font-size: 0.76rem; color: #8fb0d4; margin: 0.4rem 0 0; min-height: 1em; }
-.market-foot { margin-top: 2.5rem; color: #6f8bb0; font-size: 0.78rem; text-align: center; }
+.crumb {
+  color: var(--muted);
+  font-size: 0.85rem;
+  flex: 1;
+}
+
+.bar #wallet,
+.bar .xlink {
+  font-size: 0.9rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+.bar .xlink { margin-right: 1.4rem; }
+.bar #wallet:hover,
+.bar .xlink:hover { color: var(--ink); }
+
+/* the utopia registry — land-office ledger aesthetic over the city's navy */
+
+.market-body { background: #0c2340; }
+.market-bar { border-bottom: 1px solid rgba(140,170,210,0.14); }
+
+.market-page { max-width: 1140px; margin: 0 auto; padding: 3.2rem 1.5rem 4rem; }
+
+/* ---- registry head: an old land-office title block ---- */
+.registry-head { text-align: center; max-width: 640px; margin: 0 auto 3rem; }
+.registry-kicker { font-size: 0.72rem; letter-spacing: 0.28em; text-transform: uppercase; color: #7f9bc0; margin: 0 0 0.9rem; }
+.registry-head h1 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: clamp(2.2rem, 5vw, 3.4rem);
+  color: #e9f2fb; margin: 0 0 1rem; line-height: 1.05; }
+.registry-sub { color: #b9cbe0; line-height: 1.55; font-size: 0.95rem; margin: 0 auto; max-width: 56ch; }
+.registry-line { display: flex; align-items: center; gap: 1rem; margin: 1.6rem 0 0.9rem; }
+.registry-line span { flex: 1; height: 1px; background: rgba(140,170,210,0.25); }
+.registry-line em { font-family: 'Instrument Serif', serif; font-style: italic; color: #8fb0d4; font-size: 0.82rem; white-space: nowrap; }
+.registry-status { color: #8fb0d4; font-size: 0.85rem; }
+
+/* ---- columns ---- */
+.market-columns { display: grid; grid-template-columns: 300px 1fr; gap: 2.2rem; align-items: start; }
+@media (max-width: 820px) { .market-columns { grid-template-columns: 1fr; } }
+
+/* ---- the ledger (left rail) ---- */
+.ledger-block { margin-bottom: 2.2rem; }
+.ledger-block h2 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 1.35rem; color: #e9f2fb; margin: 0; }
+.ledger-note { color: #6f8bb0; font-size: 0.74rem; margin: 0.15rem 0 0.7rem; }
+.rank-list { list-style: none; margin: 0; padding: 0; counter-reset: rk; }
+.rank-list li { display: grid; grid-template-columns: 1.6rem 1fr auto; gap: 0 0.5rem; align-items: baseline;
+  padding: 0.5rem 0; border-top: 1px solid rgba(140,170,210,0.12); font-size: 0.86rem; }
+.rank-list li a { white-space: nowrap; }
+.rank-list li::before { counter-increment: rk; content: counter(rk, decimal-leading-zero);
+  font-family: 'Instrument Serif', serif; font-style: italic; color: #55719a; font-size: 0.8rem; }
+.rank-list a { color: #cfe0f2; text-decoration-color: rgba(185,211,236,0.35); }
+.rank-list .sub { grid-column: 2 / 4; color: #7f9bc0; font-size: 0.72rem; white-space: nowrap; }
+.rank-list .val { color: #e3c67b; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 0.8rem; }
+
+/* ---- the deeds (listing certificates) ---- */
+.deeds .body { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1.1rem; }
+
+.deed { position: relative; border: 1px solid rgba(140,170,210,0.22); background: rgba(16,40,72,0.55);
+  padding: 1.05rem 1.15rem 1.15rem; }
+.deed::before { content: ""; position: absolute; inset: 5px; border: 1px solid rgba(140,170,210,0.1); pointer-events: none; }
+
+.deed-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.65rem; }
+.deed-title { font-family: 'Instrument Serif', serif; font-size: 1.5rem; color: #e9f2fb; line-height: 1; }
+.deed-title .coords { display: block; font-family: 'Archivo', sans-serif; font-size: 0.68rem; color: #7f9bc0; margin-top: 0.35rem; letter-spacing: 0.06em; }
+.deed-map { image-rendering: pixelated; border: 1px solid rgba(140,170,210,0.25); background: #0c2340; }
+
+.deed-district { font-family: 'Instrument Serif', serif; font-style: italic; color: #b9d3ec; font-size: 0.9rem; margin: 0 0 0.7rem; }
+.deed-district i { font-style: normal; display: inline-block; width: 0.55em; height: 0.55em; margin-right: 0.4em; vertical-align: baseline; }
+
+.deed-rows { display: grid; grid-template-columns: auto 1fr; gap: 0.24rem 0.9rem; font-size: 0.82rem; color: #cfe0f2;
+  border-top: 1px solid rgba(140,170,210,0.14); padding-top: 0.7rem; margin-bottom: 0.8rem; }
+.deed-rows dt { color: #7f9bc0; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; margin: 0; }
+.deed-rows dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.deed-rows a { color: #b9d3ec; }
+
+.deed-price { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.8rem; }
+.deed-price .amount { font-family: 'Instrument Serif', serif; font-size: 1.6rem; color: #e3c67b; }
+.deed-price .label { font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: #7f9bc0; }
+
+.act { width: 100%; padding: 0.55rem; font: inherit; font-size: 0.85rem; cursor: pointer;
+  border: 1px solid rgba(233,242,251,0.5); background: transparent; color: #e9f2fb; letter-spacing: 0.04em; }
+.act:hover { background: rgba(233,242,251,0.08); }
+.act.cancel { border-color: rgba(200,130,130,0.45); color: #d9a8a8; }
+.tx { font-size: 0.75rem; color: #8fb0d4; margin: 0.45rem 0 0; min-height: 1em; }
+
+.market-foot { margin-top: 3rem; color: #55719a; font-size: 0.75rem; text-align: center; letter-spacing: 0.04em; }

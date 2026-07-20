@@ -7,45 +7,52 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c2340'/%3E%3Cpath d='M16 7 27 13.5 16 20 5 13.5Z' fill='%23e9f2fb'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="app.css">
 <link rel="stylesheet" href="market.css">
 </head>
-<body>
+<body class="market-body">
 
-<header class="bar">
+<header class="bar market-bar">
   <a class="wordmark" href="./">utopia</a>
-  <span class="crumb">marketplace · robinhood chain</span>
+  <span class="crumb">land registry &amp; exchange</span>
   <a class="xlink" href="app.html">dashboard</a>
   <a href="#" id="wallet">connect wallet</a>
 </header>
 
 <main class="market-page">
-  <section class="market-intro">
-    <h1>the marketplace</h1>
-    <p>land that owners have put up for sale. compare what each plot earns, see who’s selling, and buy a deed straight from another holder — rewards already accrued come with it.</p>
-    <p class="market-note" id="market-status">reading listings…</p>
+
+  <section class="registry-head">
+    <p class="registry-kicker">the utopia registry</p>
+    <h1>Land changes hands here.</h1>
+    <p class="registry-sub">Deeds listed by their owners, sold wallet to wallet. Every trade settles on chain, the seller keeps the deed until the moment it sells, and the rewards a plot has already earned travel with it.</p>
+    <div class="registry-line" aria-hidden="true"><span></span><em>est. 2026 · robinhood chain</em><span></span></div>
+    <p class="registry-status" id="market-status">reading the register…</p>
   </section>
 
-  <div class="market-grid">
-    <section id="earners" class="market-card">
-      <h2>earns the most</h2>
-      <div class="body"><p class="quiet-note">ranking listed plots by reward stream…</p></div>
-    </section>
+  <div class="market-columns">
 
-    <section id="listings" class="market-card wide">
-      <h2>on the market</h2>
+    <aside class="ledger">
+      <section id="earners" class="ledger-block">
+        <h2>highest streams</h2>
+        <p class="ledger-note">listed plots, ranked by what they earn</p>
+        <div class="body"><p class="quiet-note">reading…</p></div>
+      </section>
+
+      <section id="sellers" class="ledger-block">
+        <h2>the sellers</h2>
+        <p class="ledger-note">owners with land on the market</p>
+        <div class="body"><p class="quiet-note">reading…</p></div>
+      </section>
+    </aside>
+
+    <section id="listings" class="deeds">
       <div class="body"><p class="quiet-note">reading listings…</p></div>
     </section>
 
-    <section id="sellers" class="market-card">
-      <h2>who’s selling</h2>
-      <div class="body"><p class="quiet-note">counting sellers…</p></div>
-    </section>
   </div>
 
-  <p class="market-foot">non-custodial · sellers keep their deed until it sells · 3% fee · every trade verifiable on the explorer</p>
+  <p class="market-foot">non-custodial · sellers hold their deed until sale · 3% registry fee · every transfer verifiable on the explorer</p>
 </main>
 
-<script type="module" src="market.js?v=1"></script>
+<script type="module" src="market.js?v=2"></script>
 </body>
 </html>
