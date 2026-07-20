@@ -306,3 +306,7 @@ footer .fine { margin-top: 1.4rem; font-size: 0.8rem; }
   color: var(--muted);
   word-break: break-all;
 }
+
+.token-line { margin-top: 1.1rem; font-size: 0.82rem; color: #8fb0d4; }
+.token-line code { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: 0.78rem; word-break: break-all; }
+.token-line a { color: #b9d3ec; text-decoration-color: rgba(185, 211, 236, 0.4); }
