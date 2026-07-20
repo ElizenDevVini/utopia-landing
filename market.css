@@ -1,0 +1,31 @@
+.market-page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+.market-intro h1 { font-family: 'Instrument Serif', serif; font-size: 2.4rem; margin: 0 0 0.5rem; }
+.market-intro p { color: #b9cbe0; max-width: 60ch; line-height: 1.5; }
+.market-note { color: #8fb0d4; font-size: 0.85rem; margin-top: 0.6rem; }
+
+.market-grid { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 1rem; margin-top: 2rem; align-items: start; }
+.market-card { background: rgba(20,42,74,0.5); border: 1px solid rgba(140,170,210,0.14); border-radius: 6px; padding: 1.1rem 1.2rem; }
+.market-card h2 { font-family: 'Instrument Serif', serif; font-size: 1.3rem; margin: 0 0 0.8rem; font-weight: 400; }
+@media (max-width: 860px) { .market-grid { grid-template-columns: 1fr; } .market-card.wide { order: -1; } }
+
+.rank-list { list-style: none; margin: 0; padding: 0; }
+.rank-list li { display: grid; grid-template-columns: auto 1fr auto; gap: 0.4rem 0.6rem; align-items: baseline;
+  padding: 0.4rem 0; border-top: 1px solid rgba(140,170,210,0.1); font-size: 0.88rem; }
+.rank-list li:first-child { border-top: none; }
+.rank-list a { color: #cfe0f2; }
+.rank-list .sub { grid-column: 1 / 2; color: #7f9bc0; font-size: 0.74rem; }
+.rank-list .val { color: #8ec07c; text-align: right; white-space: nowrap; }
+
+.listing { border: 1px solid rgba(140,170,210,0.16); border-radius: 5px; padding: 0.9rem 1rem; margin-bottom: 0.8rem;
+  background: rgba(12,35,64,0.4); }
+.listing-head { font-size: 0.95rem; color: #e9f2fb; margin-bottom: 0.5rem; }
+.listing-head .dist { float: right; color: #8fb0d4; font-size: 0.76rem; }
+.listing-rows { display: grid; grid-template-columns: auto 1fr; gap: 0.2rem 0.8rem; font-size: 0.82rem; color: #b9cbe0; margin-bottom: 0.7rem; }
+.listing-rows span:nth-child(odd) { color: #7f9bc0; }
+.listing-rows a { color: #b9d3ec; }
+.act { width: 100%; padding: 0.5rem; border-radius: 4px; font: inherit; font-size: 0.86rem; cursor: pointer; border: 1px solid transparent; }
+.act.buy { background: #2f6f4f; color: #eafff2; }
+.act.buy:hover { background: #37845e; }
+.act.cancel { background: transparent; border-color: rgba(200,120,120,0.4); color: #d9a0a0; }
+.tx { font-size: 0.76rem; color: #8fb0d4; margin: 0.4rem 0 0; min-height: 1em; }
+.market-foot { margin-top: 2.5rem; color: #6f8bb0; font-size: 0.78rem; text-align: center; }
