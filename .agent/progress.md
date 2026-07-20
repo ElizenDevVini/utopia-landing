@@ -91,3 +91,10 @@
 - Done: final JavaScript syntax and whitespace checks; protected transaction/cap diff reviewed.
 - Next: commit the five intended tracked files and push only if main remains otherwise clean.
 - Blocked: end-to-end enrollment cannot complete until the separate approver service is deployed.
+
+## Codex live approval verification — 2026-07-19
+
+- Done: service/controller, all-Sheet eligibility, state-override buy, cap, and live headless dashboard checks passed.
+- Done: synchronized the requested cache tags to `v=12`; JavaScript syntax and diff checks pass.
+- Next: commit the intended tracked files and push only from the otherwise-clean `main` worktree.
+- Safety: no signing, transaction broadcast, funds, contract changes, webhook writes, or frontend logic changes occurred.

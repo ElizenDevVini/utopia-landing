@@ -81,3 +81,10 @@ Robinhood Stock Tokens that appear in the same wallet.
 - A true eligibility transition re-renders the buy state and shows one quiet activation note; no buying is automated.
 - Preserve the eight-plot cap, transaction behavior, contracts, network configuration, and premium-district work.
 - Verify with a headless injected wallet and intercepted webhook/eligibility responses; never mutate the live Sheet or broadcast a transaction.
+
+## Codex live approval verification — 2026-07-19
+
+- Read-only verify approver health/cadence, registry ownership, controller approver, Sheet eligibility coverage, one approved-wallet buy simulation, and an ineligible-control rejection.
+- Verify both frontend eight-plot guards and a live headless eligible-wallet dashboard with no signing or webhook mutation.
+- Change only cache-busting query tags, keep shared tags synchronized, run JavaScript syntax checks, and commit the intended files on `main`.
+- Never sign, broadcast, deploy, move funds, or alter contract/frontend logic.
