@@ -115,7 +115,7 @@ function render() {
       '<div class="deed-top">' +
         '<div class="deed-title">plot ' + l.id +
           '<span class="coords">' + coords(l.id) + ' · deed no. ' + String(l.id).padStart(4, '0') + '</span></div>' +
-        '<canvas class="deed-map" width="32" height="32" style="width:64px;height:64px" data-map="' + l.id + '"></canvas>' +
+        '<canvas class="deed-map" width="64" height="64" style="width:66px;height:66px" data-map="' + l.id + '"></canvas>' +
       '</div>' +
       '<p class="deed-district"><i style="background:' + DCOLORS[dIdx(l.id)] + '"></i>' + districtName(l.id) + '</p>' +
       '<dl class="deed-rows">' +
@@ -128,29 +128,72 @@ function render() {
         : '<button class="act buy" data-buy="' + l.id + '" data-price="' + l.price + '">acquire this deed</button>') +
       '<p class="tx" id="tx-' + l.id + '"></p></article>';
   }).join('');
+  // staggered reveal
+  [...listingsEl.querySelectorAll('.deed')].forEach((el, i) => {
+    el.style.animationDelay = (i * 60) + 'ms';
+    el.classList.add('deal-in');
+  });
   drawDeedMaps();
 
   // who's selling
   drawSellers();
 }
 
-// mini-map stamp: the whole city faint, this plot burning bright
+// deed diorama: a tiny isometric city with the plot as a lit beacon tower.
+// animated — the beacon pulses and the surrounding blocks shimmer faintly.
+const dioramas = [];
 function drawDeedMaps() {
+  dioramas.length = 0;
   for (const cv of document.querySelectorAll('.deed-map')) {
-    const id = Number(cv.dataset.map);
-    const ctx = cv.getContext('2d');
-    ctx.fillStyle = '#0a1e38'; ctx.fillRect(0, 0, 32, 32);
-    // a faint checker so it reads as the city grid, gold ring only at the core edge
-    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
-      const dx = x - 15.5, dy = y - 15.5, d = dx * dx + dy * dy;
-      if ((x + y) % 2 === 0) { ctx.fillStyle = 'rgba(140,170,210,0.10)'; ctx.fillRect(x, y, 1, 1); }
-      if (d >= 52 && d < 64) { ctx.fillStyle = 'rgba(227,198,123,0.22)'; ctx.fillRect(x, y, 1, 1); }
+    dioramas.push({ cv, ctx: cv.getContext('2d'), id: Number(cv.dataset.map) });
+  }
+  if (!dioramas._running) { dioramas._running = true; requestAnimationFrame(tickDioramas); }
+}
+function tickDioramas(now) {
+  const t = now / 1000;
+  for (const d of dioramas) drawDiorama(d, t);
+  requestAnimationFrame(tickDioramas);
+}
+function drawDiorama({ cv, ctx, id }, t) {
+  const S = 64; // canvas px
+  if (cv.width !== S) { cv.width = S; cv.height = S; }
+  ctx.clearRect(0, 0, S, S);
+  const G = 11; // grid cells shown (a window onto the city around the plot)
+  const px = id % SIDE, py = (id / SIDE) | 0;
+  const cx0 = Math.max(0, Math.min(SIDE - G, px - (G >> 1)));
+  const cy0 = Math.max(0, Math.min(SIDE - G, py - (G >> 1)));
+  const tw = S / (G + 1), th = tw * 0.5;
+  const ox = S / 2, oy = S * 0.30;
+  const iso = (gx, gy) => [ox + (gx - gy) * tw * 0.5, oy + (gx + gy) * th * 0.5];
+  for (let s = 0; s <= 2 * (G - 1); s++) {
+    for (let gx = Math.max(0, s - G + 1); gx <= Math.min(G - 1, s); gx++) {
+      const gy = s - gx;
+      const wx = cx0 + gx, wy = cy0 + gy;
+      const isPlot = wx === px && wy === py;
+      const dcx = wx - 15.5, dcy = wy - 15.5, core = dcx * dcx + dcy * dcy < 64;
+      let h = 3 + ((wx * 7 + wy * 13) % 5); // deterministic block height in px
+      let top;
+      if (isPlot) { h = 14 + Math.sin(t * 3) * 3; top = '#ffffff'; }
+      else if (core) top = 'rgba(227,198,123,0.35)';
+      else top = 'rgba(120,150,195,' + (0.14 + ((wx + wy) % 2) * 0.06) + ')';
+      const [x, y] = iso(gx, gy);
+      block(ctx, x, y, tw, th, h, top, isPlot);
     }
-    const px = id % 32, py = (id / 32) | 0;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillRect(px - 2, py, 2, 1); ctx.fillRect(px + 1, py, 2, 1);
-    ctx.fillRect(px, py - 2, 1, 2); ctx.fillRect(px, py + 1, 1, 2); // surveyor's cross
-    ctx.fillStyle = '#e3c67b'; ctx.fillRect(px, py, 1, 1);
+  }
+}
+function block(ctx, x, y, tw, th, h, top, lit) {
+  const hw = tw * 0.5, hh = th * 0.5;
+  // faces
+  ctx.fillStyle = lit ? 'rgba(210,225,245,0.55)' : 'rgba(30,55,92,0.6)';
+  ctx.beginPath(); ctx.moveTo(x - hw, y); ctx.lineTo(x - hw, y - h); ctx.lineTo(x, y + hh - h); ctx.lineTo(x, y + hh); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = lit ? 'rgba(170,195,230,0.5)' : 'rgba(20,40,70,0.6)';
+  ctx.beginPath(); ctx.moveTo(x + hw, y); ctx.lineTo(x + hw, y - h); ctx.lineTo(x, y + hh - h); ctx.lineTo(x, y + hh); ctx.closePath(); ctx.fill();
+  // top
+  ctx.fillStyle = top;
+  ctx.beginPath(); ctx.moveTo(x, y - h); ctx.lineTo(x + hw, y + hh - h); ctx.lineTo(x, y + th - h); ctx.lineTo(x - hw, y + hh - h); ctx.closePath(); ctx.fill();
+  if (lit) { // beacon glow
+    ctx.save(); ctx.globalAlpha = 0.4; ctx.shadowColor = '#e3c67b'; ctx.shadowBlur = 8;
+    ctx.fillStyle = '#e3c67b'; ctx.beginPath(); ctx.arc(x, y - h, 1.6, 0, 7); ctx.fill(); ctx.restore();
   }
 }
 
@@ -212,3 +255,69 @@ listingsEl.addEventListener('click', async e => {
 
 loadListings().catch(err => { statusEl.textContent = 'could not read the marketplace.'; console.error(err); });
 setInterval(() => loadListings().catch(() => {}), 20000);
+
+// ---- living skyline: an animated iso strip of towers rising and settling ----
+(function skyline() {
+  const cv = document.getElementById('skyline');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  let W = 0, H = 0, dpr = 1, t0 = 0;
+  const N = 46; // towers across
+  const towers = Array.from({ length: N }, (_, i) => ({
+    x: i,
+    base: 0.25 + ((Math.sin(i * 2.7) + 1) / 2) * 0.9, // deterministic heights
+    speed: 0.4 + ((i * 37) % 100) / 200,
+    phase: (i * 41) % 628 / 100,
+    gold: (i * 7) % 11 === 0, // a few gilded towers
+  }));
+  function fit() {
+    W = cv.clientWidth; H = cv.clientHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = W * dpr; cv.height = H * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  // iso projection helpers
+  function draw(now) {
+    if (!t0) t0 = now;
+    const time = (now - t0) / 1000;
+    ctx.clearRect(0, 0, W, H);
+    const tw = W / (N * 0.62); // tile width
+    const th = tw * 0.5;
+    const ox = tw * 0.5, oy = H - th * 2.2;
+    for (let i = 0; i < N; i++) {
+      const tk = towers[i];
+      // breathe: height eases up and down over time
+      const wobble = (Math.sin(time * tk.speed + tk.phase) + 1) / 2;
+      const h = (tk.base + wobble * 0.5) * th * 3.4;
+      const sx = ox + i * tw * 0.6;
+      const sy = oy - i * 0.0; // flat baseline, towers march right
+      prismTop(ctx, sx, sy, tw, th, h, tk.gold, wobble);
+    }
+    requestAnimationFrame(draw);
+  }
+  function prismTop(ctx, sx, sy, tw, th, h, gold, lit) {
+    const hw = tw * 0.42, hh = th * 0.42;
+    const topY = sy - h;
+    // left face
+    ctx.beginPath();
+    ctx.moveTo(sx - hw, sy - hh); ctx.lineTo(sx - hw, topY - hh);
+    ctx.lineTo(sx, topY); ctx.lineTo(sx, sy); ctx.closePath();
+    ctx.fillStyle = gold ? 'rgba(150,120,50,0.55)' : 'rgba(40,70,115,0.55)';
+    ctx.fill();
+    // right face
+    ctx.beginPath();
+    ctx.moveTo(sx + hw, sy - hh); ctx.lineTo(sx + hw, topY - hh);
+    ctx.lineTo(sx, topY); ctx.lineTo(sx, sy); ctx.closePath();
+    ctx.fillStyle = gold ? 'rgba(110,88,36,0.5)' : 'rgba(28,52,88,0.5)';
+    ctx.fill();
+    // top cap, brightens as it rises
+    const a = 0.4 + lit * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(sx, topY); ctx.lineTo(sx + hw, topY - hh);
+    ctx.lineTo(sx, topY - hh * 2); ctx.lineTo(sx - hw, topY - hh); ctx.closePath();
+    ctx.fillStyle = gold ? `rgba(227,198,123,${a})` : `rgba(140,175,215,${a * 0.7})`;
+    ctx.fill();
+  }
+  fit(); requestAnimationFrame(draw);
+  window.addEventListener('resize', fit);
+})();

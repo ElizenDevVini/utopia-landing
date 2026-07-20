@@ -97,3 +97,26 @@
 .tx { font-size: 0.75rem; color: #8fb0d4; margin: 0.45rem 0 0; min-height: 1em; }
 
 .market-foot { margin-top: 3rem; color: #55719a; font-size: 0.75rem; text-align: center; letter-spacing: 0.04em; }
+
+/* living skyline strip under the title block */
+#skyline { display: block; width: 100%; height: 130px; margin: 0 0 2.5rem; opacity: 0.9;
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
+
+/* deed cards deal in like cards onto a table */
+@keyframes deal-in { from { opacity: 0; transform: translateY(14px) rotateX(6deg); } to { opacity: 1; transform: none; } }
+.deed.deal-in { animation: deal-in 0.5s cubic-bezier(0.2,0.7,0.2,1) both; }
+.deed { transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s; }
+.deed:hover { border-color: rgba(227,198,123,0.5); transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.35); }
+.deed-map { border: 1px solid rgba(140,170,210,0.25); background: radial-gradient(circle at 50% 40%, #12315a, #0a1e38); }
+.act.buy { transition: background 0.2s, letter-spacing 0.2s; }
+.act.buy:hover { background: rgba(227,198,123,0.14); border-color: rgba(227,198,123,0.6); letter-spacing: 0.09em; }
+
+/* the asking price gets a subtle shimmer */
+@keyframes shimmer { 0%,100% { opacity: 0.85; } 50% { opacity: 1; } }
+.deed-price .amount { animation: shimmer 4s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  #skyline { display: none; }
+  .deed.deal-in, .deed-price .amount { animation: none; }
+}
