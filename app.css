@@ -207,3 +207,23 @@
 }
 
 .side .wallet-pick { margin-right: 0.5rem; }
+
+/* customize your building */
+.build-panel { margin-top: 0.9rem; border-top: 1px solid rgba(140,170,210,0.14); padding-top: 0.6rem; }
+.build-panel summary { cursor: pointer; font-size: 0.85rem; color: #b9d3ec; list-style: none; }
+.build-panel summary::-webkit-details-marker { display: none; }
+.build-panel summary::before { content: '+ '; color: #6f8bb0; }
+.build-panel[open] summary::before { content: '– '; }
+.build-body { padding-top: 0.7rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.build-label { font-size: 0.66rem; letter-spacing: 0.14em; text-transform: uppercase; color: #6f8bb0; margin-top: 0.4rem; }
+.build-label .hval { color: #cfe0f2; letter-spacing: 0; }
+.swatches { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.swatch { width: 1.5rem; height: 1.5rem; border-radius: 3px; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.swatch.on { border-color: #f0f5fb; box-shadow: 0 0 0 1px rgba(12,35,64,0.6); }
+.build-style, .build-name { font: inherit; font-size: 0.86rem; background: rgba(12,35,64,0.6);
+  border: 1px solid rgba(140,170,210,0.3); color: #e9f2fb; padding: 0.4rem 0.55rem; border-radius: 3px; }
+.build-height { width: 100%; accent-color: #e3c67b; }
+.build-go { margin-top: 0.7rem; font: inherit; font-size: 0.85rem; padding: 0.5rem; cursor: pointer;
+  background: #e3c67b; color: #0c2340; border: none; border-radius: 3px; }
+.build-go:hover { background: #edd7a0; }
+.build-go:disabled { opacity: 0.5; cursor: default; }

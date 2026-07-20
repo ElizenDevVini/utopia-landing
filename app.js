@@ -133,6 +133,19 @@ const erc20Abi = parseAbi([
   'function faucet()',
 ]);
 
+// ---- building customization (UtopiaBuildings) ----
+// owners paint/name/shape their plot; the map renders it. Fee paid in $utopia.
+const BUILDINGS = globalThis.UTOPIA_BUILDINGS || NET.buildings || '';
+const buildingsAbi = parseAbi([
+  'function setBuilding(uint256 id, uint24 color, uint8 style, uint8 height, string name)',
+  'function getBuildings(uint256[] ids) view returns ((bool set,uint24 color,uint8 style,uint8 height)[], string[])',
+  'function fee() view returns (uint256)',
+]);
+const BUILD_STYLES = ['tower', 'spire', 'low-rise', 'dome', 'plaza'];
+const BUILD_COLORS = ['#e3c67b', '#d16b6b', '#8ec07c', '#5b8fd0', '#b46fd0', '#e0a458', '#5ec2c2', '#e9f2fb'];
+let builds = new Array(PLOTS).fill(null); // {color, style, height, name} per plot
+const BUILD_FEE = 25n * 10n ** 18n; // display default; real value read from contract
+
 const pub = createPublicClient({
   chain,
   batch: { multicall: { wait: 16, batchSize: 4096 } },
@@ -284,10 +297,22 @@ function fit() {
 function zOf(id) {
   const x = id % SIDE, y = (id / SIDE) | 0;
   if (!owned[id]) return 0.08;
+  // an owner-set building height overrides the default skyline
+  if (builds[id]) return 0.6 + builds[id].height * 0.55 + (builds[id].style === 1 ? 0.8 : 0);
   // sold plots rise as skyscrapers — deterministic height so everyone sees the
   // same skyline, taller toward the center
   const near = Math.exp(-((x - 15.5) ** 2 + (y - 15.5) ** 2) / 260);
   return 1.3 + hash(x + 7, y + 13) * 1.8 + near * 1.6;
+}
+
+// footprint inset per style: spire is slim, plaza is flat-wide, dome mid
+function styleInset(id) {
+  const c = builds[id];
+  if (!c) return IN;
+  if (c.style === 1) return 0.28; // spire
+  if (c.style === 3) return 0.16; // dome
+  if (c.style === 4) return 0.02; // plaza (near full footprint, kept low by height)
+  return IN; // tower / low-rise
 }
 
 function render() {
@@ -301,16 +326,42 @@ function render() {
       let z = demo ? demo.h : zOf(id);
       let top;
       if (demo) top = MINE_TOP;
+      else if (owned[id] && builds[id]) top = builds[id].color; // owner-painted
       else if (owned[id]) top = mine[id] ? MINE_TOP : CLAIMED_TOP;
       else if (DISTRICTS_ON) top = DISTRICTS[districtOf(x, y)].color;
       else top = tiers ? TIER_TOPS[tiers[id]] : TOPS[(hash(x, y) * 997) % 3 | 0];
       if (id === selected) z += 0.35;
       if (id === hoverId && id !== selected) top = HOVER_TOP;
-      prism(ctx, view, x + IN, y + IN, x + 1 - IN, y + 1 - IN, z, top);
+      const inset = owned[id] ? styleInset(id) : IN;
+      prism(ctx, view, x + inset, y + inset, x + 1 - inset, y + 1 - inset, z, top);
     }
   }
   if (DISTRICTS_ON) drawDistrictLabels();
+  drawBuildingLabels();
   if (DEMO_SKYLINE) drawSkylineLabels();
+}
+
+// building names float above owner-customized plots
+function drawBuildingLabels() {
+  let any = false;
+  for (let i = 0; i < PLOTS; i++) if (builds[i] && builds[i].name) { any = true; break; }
+  if (!any) return;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '600 ' + Math.max(8, view.tw * 0.42) + "px 'Archivo', sans-serif";
+  for (let id = 0; id < PLOTS; id++) {
+    const c = builds[id];
+    if (!c || !c.name) continue;
+    const x = id % SIDE, y = (id / SIDE) | 0;
+    const sx = view.ox + (x + 0.5 - (y + 0.5)) * (view.tw / 2);
+    const sy = view.oy + (x + 0.5 + y + 0.5) * (view.th / 2) - (zOf(id) + 0.5) * view.th;
+    ctx.fillStyle = 'rgba(12,35,64,0.9)';
+    ctx.fillText(c.name, sx + 1, sy + 1);
+    ctx.fillStyle = '#f0f5fb';
+    ctx.fillText(c.name, sx, sy);
+  }
+  ctx.restore();
 }
 
 function drawSkylineLabels() {
@@ -613,6 +664,32 @@ async function refreshOwnership() {
   renderMarket();
   renderHoldings();
   schedule();
+  refreshBuildings().catch(() => {});
+}
+
+// read owner-set customizations for every owned plot (one batched call)
+async function refreshBuildings() {
+  if (!BUILDINGS) return;
+  const ids = [];
+  for (let i = 0; i < PLOTS; i++) if (owned[i]) ids.push(i);
+  if (!ids.length) return;
+  try {
+    const [bs, ns] = await pub.readContract({
+      address: BUILDINGS, abi: buildingsAbi, functionName: 'getBuildings', args: [ids.map(BigInt)],
+    });
+    builds = new Array(PLOTS).fill(null);
+    ids.forEach((id, i) => {
+      const b = bs[i];
+      if (b.set) {
+        builds[id] = {
+          color: '#' + Number(b.color).toString(16).padStart(6, '0'),
+          style: Number(b.style), height: Number(b.height), name: ns[i] || '',
+        };
+      }
+    });
+    if (selected >= 0) renderSel();
+    schedule();
+  } catch {}
 }
 
 async function refreshClaimables() {
@@ -880,11 +957,31 @@ function renderSel() {
       '<button id="act" data-act="claim"' + (blocked ? ' disabled' : '') + '>' +
       (blocked ? 'eligibility required to claim' : 'claim rewards') + '</button>' +
       (blocked ? '<p><a href="#" id="reqaccess">setting up access…</a></p><p class="quiet-note">' + ACCESS_PENDING_COPY + '</p>' : '') +
+      (BUILDINGS ? buildFormHtml(id) : '') +
       '<p class="txstate"></p>';
   } else {
     selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · owned</h3>' + rows +
       '<p><a href="' + EXPLORER + '/token/' + LAND + '/instance/' + id + '" target="_blank" rel="noopener">deed on the explorer</a></p>';
   }
+}
+
+// the customize-your-building panel, shown on a plot you own
+function buildFormHtml(id) {
+  const cur = builds[id] || { color: BUILD_COLORS[0], style: 0, height: 3, name: '' };
+  const swatches = BUILD_COLORS.map(c =>
+    '<button class="swatch' + (cur.color === c ? ' on' : '') + '" data-color="' + c + '" style="background:' + c + '"></button>').join('');
+  const styles = BUILD_STYLES.map((s, i) =>
+    '<option value="' + i + '"' + (cur.style === i ? ' selected' : '') + '>' + s + '</option>').join('');
+  return '<details class="build-panel"' + (builds[id] ? '' : '') + '><summary>customize your building</summary>' +
+    '<div class="build-body" data-plot="' + id + '">' +
+      '<label class="build-label">color</label><div class="swatches">' + swatches + '</div>' +
+      '<label class="build-label">style</label><select class="build-style">' + styles + '</select>' +
+      '<label class="build-label">height <span class="hval">' + cur.height + '</span></label>' +
+        '<input class="build-height" type="range" min="1" max="6" value="' + cur.height + '">' +
+      '<label class="build-label">name</label>' +
+        '<input class="build-name" type="text" maxlength="24" placeholder="the spire" value="' + (cur.name || '').replace(/"/g, '&quot;') + '">' +
+      '<button class="build-go" data-build="' + id + '">build · ' + (Number(BUILD_FEE) / 1e18) + ' $utopia</button>' +
+    '</div></details>';
 }
 
 function txRoot(act) {
@@ -1064,9 +1161,59 @@ async function doTx(act, ids, trigger) {
 selEl.addEventListener('click', e => {
   const req = e.target.closest('#reqaccess');
   if (req) { e.preventDefault(); requestAccess(req); return; }
+  const swatch = e.target.closest('.swatch');
+  if (swatch) {
+    for (const s of selEl.querySelectorAll('.swatch')) s.classList.toggle('on', s === swatch);
+    return;
+  }
+  const build = e.target.closest('.build-go');
+  if (build) { e.preventDefault(); submitBuilding(Number(build.dataset.build), build); return; }
   const btn = e.target.closest('#act');
   if (btn && selected >= 0) doTx(btn.dataset.act, [selected], btn);
 });
+selEl.addEventListener('input', e => {
+  const h = e.target.closest('.build-height');
+  if (h) { const v = h.parentElement.parentElement.querySelector('.hval'); if (v) v.textContent = h.value; }
+});
+
+// collect the form, approve $utopia if needed, then setBuilding
+async function submitBuilding(id, btn) {
+  const body = selEl.querySelector('.build-body');
+  const colorHex = (body.querySelector('.swatch.on') || body.querySelector('.swatch')).dataset.color;
+  const color = parseInt(colorHex.slice(1), 16);
+  const style = Number(body.querySelector('.build-style').value);
+  const height = Number(body.querySelector('.build-height').value);
+  const name = body.querySelector('.build-name').value.trim();
+  const txEl = selEl.querySelector('.txstate');
+  try {
+    const wallet = await connect({ prompt: !account });
+    if (!wallet) return;
+    btn.disabled = true;
+    const fee = await pub.readContract({ address: BUILDINGS, abi: buildingsAbi, functionName: 'fee' }).catch(() => BUILD_FEE);
+    if (fee > 0n) {
+      const allowance = await pub.readContract({ address: UTOPIA_TOKEN, abi: erc20Abi, functionName: 'allowance', args: [account, BUILDINGS] });
+      if (allowance < fee) {
+        txState('approve $utopia in your wallet…', selEl);
+        const ah = await wallet.writeContract({ address: UTOPIA_TOKEN, abi: erc20Abi, functionName: 'approve', args: [BUILDINGS, fee], account });
+        await pub.waitForTransactionReceipt({ hash: ah });
+      }
+    }
+    txState('build it — confirm in your wallet…', selEl);
+    const { request } = await pub.simulateContract({
+      address: BUILDINGS, abi: buildingsAbi, functionName: 'setBuilding',
+      args: [BigInt(id), color, style, height, name], account,
+    });
+    const h = await wallet.writeContract(request);
+    txState('building…', selEl);
+    await pub.waitForTransactionReceipt({ hash: h });
+    txState('built. your plot is on the map.', selEl);
+    await refreshBuildings();
+  } catch (err) {
+    if (btn) btn.disabled = false;
+    const m = (err?.shortMessage || err?.message || 'failed').split('\n')[0];
+    txState(m.toLowerCase().slice(0, 160), selEl);
+  }
+}
 
 // Send the connected address to the Sheet. Automatic submissions are guarded;
 // explicit clicks intentionally remain available as fire-and-forget retries.
