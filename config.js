@@ -12,6 +12,7 @@ const active = {
   walletRpc: 'https://rpc.mainnet.chain.robinhood.com',
   explorer: 'https://robinhoodchain.blockscout.com',
   land: '0xb93Ee2B0996C3a0577eC4E3a776D81D4E4FCbed2',
+  buildings: '0x94Cb161B86D78bB80d0B7054f8671328769fe960',
   utop: '',
   symbols: ['TSLA', 'AAPL', 'NVDA', 'MSFT', 'AMZN'],
   landVersion: 4,

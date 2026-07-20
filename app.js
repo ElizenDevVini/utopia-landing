@@ -4,9 +4,9 @@
 import {
   createPublicClient, createWalletClient, custom,
   defineChain, parseAbi, keccak256, encodePacked,
-} from './vendor/viem.js?v=13';
-import { BG, TOPS, HOVER_TOP, CLAIMED_TOP, IN, hash, prism, makeTip } from './iso.js?v=13';
-import { addressUrl, MULTICALL3, NET, resilientReadTransport, withNetwork } from './config.js?v=13';
+} from './vendor/viem.js?v=14';
+import { BG, TOPS, HOVER_TOP, CLAIMED_TOP, IN, hash, prism, makeTip } from './iso.js?v=14';
+import { addressUrl, MULTICALL3, NET, resilientReadTransport, withNetwork } from './config.js?v=14';
 
 const LAND = NET.land;
 const UTOP = NET.utop;
