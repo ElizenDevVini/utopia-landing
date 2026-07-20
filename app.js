@@ -955,7 +955,9 @@ function renderSel() {
       '<button id="act" data-act="claim"' + (blocked ? ' disabled' : '') + '>' +
       (blocked ? 'eligibility required to claim' : 'claim rewards') + '</button>' +
       (blocked ? '<p><a href="#" id="reqaccess">setting up access…</a></p><p class="quiet-note">' + ACCESS_PENDING_COPY + '</p>' : '') +
-      (BUILDINGS ? buildFormHtml(id) : '') +
+      // The building contract checks ownership on the current land contract;
+      // legacy deeds remain visible but cannot customize through this panel.
+      (BUILDINGS && currentMine[id] ? buildFormHtml(id) : '') +
       '<p class="txstate"></p>';
   } else {
     selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · owned</h3>' + rows +
@@ -1184,6 +1186,10 @@ async function submitBuilding(id, btn) {
   const name = body.querySelector('.build-name').value.trim();
   const txEl = selEl.querySelector('.txstate');
   try {
+    if (!currentMine[id]) {
+      txState('only the current deed owner can customize this plot.', selEl);
+      return;
+    }
     const wallet = await connect({ prompt: !account });
     if (!wallet) return;
     btn.disabled = true;
