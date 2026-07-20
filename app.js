@@ -4,9 +4,9 @@
 import {
   createPublicClient, createWalletClient, custom,
   defineChain, parseAbi, keccak256, encodePacked,
-} from './vendor/viem.js?v=14';
-import { BG, TOPS, HOVER_TOP, CLAIMED_TOP, IN, hash, prism, makeTip } from './iso.js?v=14';
-import { addressUrl, MULTICALL3, NET, resilientReadTransport, withNetwork } from './config.js?v=14';
+} from './vendor/viem.js?v=15';
+import { BG, TOPS, HOVER_TOP, CLAIMED_TOP, IN, hash, prism, makeTip } from './iso.js?v=15';
+import { addressUrl, MULTICALL3, NET, resilientReadTransport, withNetwork } from './config.js?v=15';
 
 const LAND = NET.land;
 const UTOP = NET.utop;
@@ -134,7 +134,7 @@ const erc20Abi = parseAbi([
 ]);
 
 // ---- building customization (UtopiaBuildings) ----
-// owners paint/name/shape their plot; the map renders it. Fee paid in $utopia.
+// owners paint/name/shape their plot; the map renders it. Free for plot owners.
 const BUILDINGS = globalThis.UTOPIA_BUILDINGS || NET.buildings || '';
 const buildingsAbi = parseAbi([
   'function setBuilding(uint256 id, uint24 color, uint8 style, uint8 height, string name)',
@@ -339,25 +339,43 @@ function render() {
   if (DEMO_SKYLINE) drawSkylineLabels();
 }
 
-// building names float above owner-customized plots
+// building names float above owner-customized plots. names are nudged upward
+// when they would collide so a dense cluster reads as a stack, not a smear.
 function drawBuildingLabels() {
-  let any = false;
-  for (let i = 0; i < PLOTS; i++) if (builds[i] && builds[i].name) { any = true; break; }
-  if (!any) return;
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = '600 ' + Math.max(8, view.tw * 0.42) + "px 'Archivo', sans-serif";
+  const labels = [];
   for (let id = 0; id < PLOTS; id++) {
     const c = builds[id];
     if (!c || !c.name) continue;
     const x = id % SIDE, y = (id / SIDE) | 0;
     const sx = view.ox + (x + 0.5 - (y + 0.5)) * (view.tw / 2);
     const sy = view.oy + (x + 0.5 + y + 0.5) * (view.th / 2) - (zOf(id) + 0.5) * view.th;
-    ctx.fillStyle = 'rgba(12,35,64,0.9)';
-    ctx.fillText(c.name, sx + 1, sy + 1);
-    ctx.fillStyle = '#f0f5fb';
-    ctx.fillText(c.name, sx, sy);
+    labels.push({ name: c.name, sx, sy, order: x + y });
+  }
+  if (!labels.length) return;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const fs = Math.max(10, view.tw * 0.5);
+  ctx.font = '600 ' + fs + "px 'Archivo', sans-serif";
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(2, fs * 0.22);
+  const lineH = fs * 1.2;
+  // front rows (higher x+y) placed last so they win the readable slot up top
+  labels.sort((a, b) => a.order - b.order);
+  const placed = [];
+  for (const L of labels) {
+    const w = ctx.measureText(L.name).width;
+    let ty = L.sy;
+    for (let i = 0; i < 40; i++) {
+      const clash = placed.some(p => Math.abs(p.x - L.sx) < (p.w + w) / 2 + 4 && Math.abs(p.y - ty) < lineH);
+      if (!clash) break;
+      ty -= lineH;
+    }
+    placed.push({ x: L.sx, y: ty, w });
+    ctx.strokeStyle = 'rgba(8,24,44,0.92)';
+    ctx.strokeText(L.name, L.sx, ty);
+    ctx.fillStyle = '#f2f7fd';
+    ctx.fillText(L.name, L.sx, ty);
   }
   ctx.restore();
 }
