@@ -2,10 +2,10 @@
 
 // vendored tree-shaken viem 2.21.19 bundle; the site itself has no build step
 import {
-  createPublicClient, http, defineChain, parseAbi, keccak256, encodePacked,
-} from './vendor/viem.js?v=12';
+  createPublicClient, custom, defineChain, parseAbi, keccak256, encodePacked,
+} from './vendor/viem.js?v=13';
 
-import { addressUrl, MULTICALL3, NET, withNetwork } from './config.js?v=12';
+import { addressUrl, MULTICALL3, NET, resilientReadTransport, withNetwork } from './config.js?v=13';
 
 const LAND = NET.land;
 const EXPLORER = NET.explorer;
@@ -33,7 +33,7 @@ const abi = parseAbi([
 const pub = createPublicClient({
   chain,
   batch: { multicall: { wait: 16, batchSize: 4096 } },
-  transport: http(NET.rpc, { retryCount: 1, timeout: 7000 }),
+  transport: resilientReadTransport(custom),
 });
 
 const U = window.utopia;

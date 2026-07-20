@@ -89,17 +89,9 @@ Robinhood Stock Tokens that appear in the same wallet.
 - Change only cache-busting query tags, keep shared tags synchronized, run JavaScript syntax checks, and commit the intended files on `main`.
 - Never sign, broadcast, deploy, move funds, or alter contract/frontend logic.
 
-## Codex marketplace three-page loop — 2026-07-20
+## Codex buyer accessibility — 2026-07-20
 
-- On branch `marketplace`, verify and repair the fork-only market, my-land, and
-  activity journeys for connected wallets, transaction state, bounded/batched
-  reads, sorting/filtering, disconnected state, and <=700px layouts.
-- Run at most five gather/fix/retest rounds and record the first passing round
-  for each of the nine user criteria.
-- Use only Anvil chain 4663 at `localhost:8545` and the local static server;
-  never deploy or broadcast to mainnet, merge, or push from a dirty worktree.
-- Preserve unrelated `app.css`, `app.html`, and `app.js` edits and commit only
-  marketplace fixes plus the requested `[codex]` verification log.
-- Verification: full Forge suite, real EIP-1193 fork wallet UI journeys,
-  on-chain fork assertions, RPC request accounting, console-error checks, and
-  desktop/mobile screenshots.
+- Keep the live dashboard readable when the caching proxy is unavailable by failing read-only calls over to the official RPC after a short timeout.
+- Present a plot as buyable only when its uncommitted Stock Token reserve covers that plot's full remaining reward obligation.
+- Preserve automatic access, eligibility enforcement, the eight-plot cap, transaction simulation, contracts, and wallet-side official RPC behavior.
+- Verify with the proxy blocked, an impersonated eligible wallet, real chain state, and no webhook, signature, or transaction method.
