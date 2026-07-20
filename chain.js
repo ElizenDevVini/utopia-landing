@@ -30,6 +30,12 @@ const abi = parseAbi([
   'function plotsPacked() view returns (uint256[1024])',
 ]);
 
+const BUILDINGS = NET.buildings || '';
+const buildingsAbi = parseAbi([
+  'function getBuildings(uint256[] ids) view returns ((bool set,uint24 color,uint8 style,uint8 height)[], string[])',
+]);
+let builds = new Array(PLOTS).fill(null); // owner-set cosmetics, mirrored from the dashboard
+
 const pub = createPublicClient({
   chain,
   batch: { multicall: { wait: 16, batchSize: 4096 } },
@@ -90,7 +96,18 @@ function fit() {
 function zOf(id) {
   const x = id % SIDE, y = (id / SIDE) | 0;
   if (!owned[id]) return 0.08;
+  if (builds[id]) return 0.6 + builds[id].height * 0.55 + (builds[id].style === 1 ? 0.8 : 0);
   return 0.35 + U.hash(x + 7, y + 13) * 0.85;
+}
+
+// footprint inset per style: spire slim, dome mid, plaza flat-wide
+function styleInset(id) {
+  const c = builds[id];
+  if (!c) return U.IN;
+  if (c.style === 1) return 0.28;
+  if (c.style === 3) return 0.16;
+  if (c.style === 4) return 0.02;
+  return U.IN;
 }
 
 function render() {
@@ -101,12 +118,63 @@ function render() {
       const y = s - x;
       const id = y * SIDE + x;
       let z = zOf(id);
-      let top = owned[id] ? U.CLAIMED_TOP : U.TOPS[(U.hash(x, y) * 997) % 3 | 0];
+      let top;
+      if (owned[id] && builds[id]) top = builds[id].color;
+      else top = owned[id] ? U.CLAIMED_TOP : U.TOPS[(U.hash(x, y) * 997) % 3 | 0];
       if (id === selected) z += 0.35;
       if (id === hoverId && id !== selected) top = U.HOVER_TOP;
-      U.prism(ctx, view, x + U.IN, y + U.IN, x + 1 - U.IN, y + 1 - U.IN, z, top);
+      const inset = owned[id] ? styleInset(id) : U.IN;
+      U.prism(ctx, view, x + inset, y + inset, x + 1 - inset, y + 1 - inset, z, top);
     }
   }
+  drawBuildingLabels();
+}
+
+// building names float above owner-customized plots
+function drawBuildingLabels() {
+  let any = false;
+  for (let i = 0; i < PLOTS; i++) if (builds[i] && builds[i].name) { any = true; break; }
+  if (!any) return;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '600 ' + Math.max(8, view.tw * 0.42) + "px 'Archivo', sans-serif";
+  for (let id = 0; id < PLOTS; id++) {
+    const c = builds[id];
+    if (!c || !c.name) continue;
+    const x = id % SIDE, y = (id / SIDE) | 0;
+    const sx = view.ox + (x + 0.5 - (y + 0.5)) * (view.tw / 2);
+    const sy = view.oy + (x + 0.5 + y + 0.5) * (view.th / 2) - (zOf(id) + 0.5) * view.th;
+    ctx.fillStyle = 'rgba(12,35,64,0.9)';
+    ctx.fillText(c.name, sx + 1, sy + 1);
+    ctx.fillStyle = '#f0f5fb';
+    ctx.fillText(c.name, sx, sy);
+  }
+  ctx.restore();
+}
+
+async function refreshBuildings() {
+  if (!BUILDINGS) return;
+  const ids = [];
+  for (let i = 0; i < PLOTS; i++) if (owned[i]) ids.push(i);
+  if (!ids.length) { builds = new Array(PLOTS).fill(null); return; }
+  try {
+    const [bs, ns] = await pub.readContract({
+      address: BUILDINGS, abi: buildingsAbi, functionName: 'getBuildings', args: [ids.map(BigInt)],
+    });
+    const next = new Array(PLOTS).fill(null);
+    ids.forEach((id, i) => {
+      const b = bs[i];
+      if (b.set) {
+        next[id] = {
+          color: '#' + Number(b.color).toString(16).padStart(6, '0'),
+          style: Number(b.style), height: Number(b.height), name: ns[i] || '',
+        };
+      }
+    });
+    builds = next;
+    schedule();
+  } catch {}
 }
 
 let raf = 0;
@@ -208,6 +276,7 @@ async function refreshOwnership() {
     contractLink,
   );
   schedule();
+  refreshBuildings().catch(() => {});
 }
 
 async function load() {

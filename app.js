@@ -139,12 +139,10 @@ const BUILDINGS = globalThis.UTOPIA_BUILDINGS || NET.buildings || '';
 const buildingsAbi = parseAbi([
   'function setBuilding(uint256 id, uint24 color, uint8 style, uint8 height, string name)',
   'function getBuildings(uint256[] ids) view returns ((bool set,uint24 color,uint8 style,uint8 height)[], string[])',
-  'function fee() view returns (uint256)',
 ]);
 const BUILD_STYLES = ['tower', 'spire', 'low-rise', 'dome', 'plaza'];
 const BUILD_COLORS = ['#e3c67b', '#d16b6b', '#8ec07c', '#5b8fd0', '#b46fd0', '#e0a458', '#5ec2c2', '#e9f2fb'];
 let builds = new Array(PLOTS).fill(null); // {color, style, height, name} per plot
-const BUILD_FEE = 25n * 10n ** 18n; // display default; real value read from contract
 
 const pub = createPublicClient({
   chain,
@@ -980,7 +978,7 @@ function buildFormHtml(id) {
         '<input class="build-height" type="range" min="1" max="6" value="' + cur.height + '">' +
       '<label class="build-label">name</label>' +
         '<input class="build-name" type="text" maxlength="24" placeholder="the spire" value="' + (cur.name || '').replace(/"/g, '&quot;') + '">' +
-      '<button class="build-go" data-build="' + id + '">build · ' + (Number(BUILD_FEE) / 1e18) + ' $utopia</button>' +
+      '<button class="build-go" data-build="' + id + '">build</button>' +
     '</div></details>';
 }
 
@@ -1189,15 +1187,6 @@ async function submitBuilding(id, btn) {
     const wallet = await connect({ prompt: !account });
     if (!wallet) return;
     btn.disabled = true;
-    const fee = await pub.readContract({ address: BUILDINGS, abi: buildingsAbi, functionName: 'fee' }).catch(() => BUILD_FEE);
-    if (fee > 0n) {
-      const allowance = await pub.readContract({ address: UTOPIA_TOKEN, abi: erc20Abi, functionName: 'allowance', args: [account, BUILDINGS] });
-      if (allowance < fee) {
-        txState('approve $utopia in your wallet…', selEl);
-        const ah = await wallet.writeContract({ address: UTOPIA_TOKEN, abi: erc20Abi, functionName: 'approve', args: [BUILDINGS, fee], account });
-        await pub.waitForTransactionReceipt({ hash: ah });
-      }
-    }
     txState('build it — confirm in your wallet…', selEl);
     const { request } = await pub.simulateContract({
       address: BUILDINGS, abi: buildingsAbi, functionName: 'setBuilding',
