@@ -65,95 +65,59 @@
 .rank-list .sub { grid-column: 2 / 4; color: #7f9bc0; font-size: 0.72rem; white-space: nowrap; }
 .rank-list .val { color: #e3c67b; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 0.8rem; }
 
-/* ---- the deeds (listing certificates) ---- */
-.deeds .body { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1.1rem; }
+/* ---- the deeds: a proper land title ---- */
+.deeds .body { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.25rem; }
 
-.deed { position: relative; border: 1px solid rgba(140,170,210,0.22); background: rgba(16,40,72,0.55);
-  padding: 1.05rem 1.15rem 1.15rem; }
-.deed::before { content: ""; position: absolute; inset: 5px; border: 1px solid rgba(140,170,210,0.1); pointer-events: none; }
+.deed { position: relative; border: 1px solid rgba(140,170,210,0.18); border-radius: 3px;
+  background: #0e2748; overflow: hidden;
+  transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s; }
+.deed:hover { border-color: rgba(227,198,123,0.45); transform: translateY(-4px);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.4); }
 
-.deed-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.65rem; }
-.deed-title { font-family: 'Instrument Serif', serif; font-size: 1.5rem; color: #e9f2fb; line-height: 1; }
-.deed-title .coords { display: block; font-family: 'Archivo', sans-serif; font-size: 0.68rem; color: #7f9bc0; margin-top: 0.35rem; letter-spacing: 0.06em; }
-.deed-map { image-rendering: pixelated; border: 1px solid rgba(140,170,210,0.25); background: #0c2340; }
+/* survey banner (the diorama) */
+.deed-survey { position: relative; height: 120px;
+  background: radial-gradient(120% 90% at 50% 10%, #17386690, #0a1c37);
+  border-bottom: 1px solid rgba(140,170,210,0.16); }
+.deed-map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.deed-no { position: absolute; top: 0.55rem; left: 0.7rem; font-size: 0.62rem; letter-spacing: 0.18em;
+  text-transform: uppercase; color: rgba(185,211,236,0.55); }
 
-.deed-district { font-family: 'Instrument Serif', serif; font-style: italic; color: #b9d3ec; font-size: 0.9rem; margin: 0 0 0.7rem; }
-.deed-district i { font-style: normal; display: inline-block; width: 0.55em; height: 0.55em; margin-right: 0.4em; vertical-align: baseline; }
+/* title */
+.deed-name { display: flex; align-items: baseline; justify-content: space-between; padding: 0.85rem 1.1rem 0; }
+.deed-name h3 { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 1.65rem; color: #f0f5fb; margin: 0; line-height: 1; }
+.deed-loc { font-size: 0.72rem; color: #7f9bc0; letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
 
-.deed-rows { display: grid; grid-template-columns: auto 1fr; gap: 0.24rem 0.9rem; font-size: 0.82rem; color: #cfe0f2;
-  border-top: 1px solid rgba(140,170,210,0.14); padding-top: 0.7rem; margin-bottom: 0.8rem; }
-.deed-rows dt { color: #7f9bc0; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; margin: 0; }
-.deed-rows dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
-.deed-rows a { color: #b9d3ec; }
+.deed-district { font-family: 'Instrument Serif', serif; font-style: italic; color: #b9d3ec; font-size: 0.92rem;
+  margin: 0.35rem 1.1rem 0; }
+.deed-district i { display: inline-block; width: 0.5em; height: 0.5em; border-radius: 50%; margin-right: 0.45em; }
 
-.deed-price { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.8rem; }
-.deed-price .amount { font-family: 'Instrument Serif', serif; font-size: 1.6rem; color: #e3c67b; }
-.deed-price .label { font-size: 0.68rem; letter-spacing: 0.2em; text-transform: uppercase; color: #7f9bc0; }
+/* ledger facts, evenly ruled */
+.deed-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 0; margin: 0.9rem 0 0; padding: 0;
+  border-top: 1px solid rgba(140,170,210,0.12); }
+.deed-facts > div { padding: 0.7rem 1.1rem; }
+.deed-facts > div:nth-child(3) { grid-column: 1 / -1; border-top: 1px solid rgba(140,170,210,0.1); }
+.deed-facts > div:nth-child(1) { border-right: 1px solid rgba(140,170,210,0.1); }
+.deed-facts dt { font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase; color: #6f8bb0; margin: 0 0 0.28rem; }
+.deed-facts dd { margin: 0; font-size: 0.9rem; color: #dfeaf6; font-variant-numeric: tabular-nums; }
+.deed-facts dd a { color: #b9d3ec; }
+.deed-facts em { font-style: normal; color: #e3c67b; font-size: 0.8rem; }
 
-.act { width: 100%; padding: 0.55rem; font: inherit; font-size: 0.85rem; cursor: pointer;
-  border: 1px solid rgba(233,242,251,0.5); background: transparent; color: #e9f2fb; letter-spacing: 0.04em; }
-.act:hover { background: rgba(233,242,251,0.08); }
-.act.cancel { border-color: rgba(200,130,130,0.45); color: #d9a8a8; }
-.tx { font-size: 0.75rem; color: #8fb0d4; margin: 0.45rem 0 0; min-height: 1em; }
+/* the foot: price + acquire, one settled bar */
+.deed-foot { display: flex; align-items: stretch; border-top: 1px solid rgba(140,170,210,0.16); }
+.deed-ask { flex: 1; padding: 0.85rem 1.1rem; display: flex; flex-direction: column; gap: 0.15rem; }
+.deed-ask span { font-size: 0.6rem; letter-spacing: 0.2em; text-transform: uppercase; color: #6f8bb0; }
+.deed-ask strong { font-family: 'Instrument Serif', serif; font-weight: 400; font-size: 1.5rem; color: #e3c67b; }
+.act { border: none; border-left: 1px solid rgba(140,170,210,0.16); background: transparent; cursor: pointer;
+  font: inherit; font-size: 0.9rem; color: #eaf1fb; padding: 0 1.3rem; letter-spacing: 0.03em;
+  display: flex; align-items: center; gap: 0.5rem; transition: background 0.25s, color 0.25s; }
+.act.buy:hover { background: #e3c67b; color: #0c2340; }
+.act .arr { transition: transform 0.25s; }
+.act.buy:hover .arr { transform: translateX(4px); }
+.act.cancel { color: #d09a9a; }
+.act.cancel:hover { background: rgba(200,120,120,0.16); }
+.tx { font-size: 0.72rem; color: #8fb0d4; margin: 0; padding: 0 1.1rem; min-height: 0; }
+.tx:not(:empty) { padding: 0.5rem 1.1rem; }
 
-.market-foot { margin-top: 3rem; color: #55719a; font-size: 0.75rem; text-align: center; letter-spacing: 0.04em; }
-
-/* living skyline strip under the title block */
-#skyline { display: block; width: 100%; height: 130px; margin: 0 0 2.5rem; opacity: 0.9;
-  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
-
-/* deed cards deal in like cards onto a table */
-@keyframes deal-in { from { opacity: 0; transform: translateY(14px) rotateX(6deg); } to { opacity: 1; transform: none; } }
-.deed.deal-in { animation: deal-in 0.5s cubic-bezier(0.2,0.7,0.2,1) both; }
-.deed { transition: border-color 0.25s, transform 0.25s, box-shadow 0.25s; }
-.deed:hover { border-color: rgba(227,198,123,0.5); transform: translateY(-3px);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.35); }
-.deed-map { border: 1px solid rgba(140,170,210,0.25); background: radial-gradient(circle at 50% 40%, #12315a, #0a1e38); }
-.act.buy { transition: background 0.2s, letter-spacing 0.2s; }
-.act.buy:hover { background: rgba(227,198,123,0.14); border-color: rgba(227,198,123,0.6); letter-spacing: 0.09em; }
-
-/* the asking price gets a subtle shimmer */
-@keyframes shimmer { 0%,100% { opacity: 0.85; } 50% { opacity: 1; } }
-.deed-price .amount { animation: shimmer 4s ease-in-out infinite; }
-
-@media (prefers-reduced-motion: reduce) {
-  #skyline { display: none; }
-  .deed.deal-in, .deed-price .amount { animation: none; }
-}
-
-/* ---- refinements: dusk skyline, ticker, wax seal, blueprint ---- */
-#skyline { height: 150px; margin: 0.5rem 0 0; opacity: 1;
-  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
-
-.ticker { overflow: hidden; border-top: 1px solid rgba(140,170,210,0.14);
-  border-bottom: 1px solid rgba(140,170,210,0.14); padding: 0.55rem 0; margin: 0 0 3rem;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
-.ticker-track { display: inline-block; white-space: nowrap; will-change: transform;
-  animation: ticker 42s linear infinite; font-size: 0.8rem; color: #9db8d6; letter-spacing: 0.03em; }
-.ticker-track b { color: #e3c67b; font-weight: 400; }
-.ticker:hover .ticker-track { animation-play-state: paused; }
-@keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-
-/* faint blueprint grid behind the whole page */
-.market-page { position: relative; }
-.market-page::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
-  background-image: linear-gradient(rgba(140,170,210,0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(140,170,210,0.035) 1px, transparent 1px);
-  background-size: 44px 44px; mask-image: radial-gradient(circle at 50% 30%, #000, transparent 80%); }
-
-/* wax seal on each deed */
-.deed { overflow: hidden; }
-.deed-seal { position: absolute; right: 0.6rem; bottom: 0.55rem; width: 30px; height: 30px; opacity: 0.5;
-  transition: opacity 0.3s, transform 0.3s; }
-.deed-seal svg { width: 100%; height: 100%; fill: #e3c67b; display: block; }
-.deed:hover .deed-seal { opacity: 0.9; transform: rotate(-8deg) scale(1.08); }
-
-/* tighter, cleaner deed cards */
-.deed { padding: 1.15rem 1.25rem 1.3rem; background: linear-gradient(160deg, rgba(18,42,76,0.6), rgba(12,32,60,0.55)); }
-.deed-title { font-size: 1.7rem; }
-.deed-price { border-top: 1px solid rgba(140,170,210,0.12); padding-top: 0.75rem; }
-.deed-price .amount { font-size: 1.75rem; }
-
-/* section headers get a hairline flourish */
-.ledger-block h2, .registry-head h1 { position: relative; }
+@keyframes deal-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.deed.deal-in { animation: deal-in 0.55s cubic-bezier(0.2,0.7,0.2,1) both; }
+@media (prefers-reduced-motion: reduce) { .deed.deal-in { animation: none; } }

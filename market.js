@@ -111,22 +111,32 @@ function render() {
     if (dx * dx + dy * dy < 64) return 0; if (dx < 0 && dy < 0) return 1; if (dx >= 0 && dy < 0) return 2; if (dx < 0 && dy >= 0) return 3; return 4; };
   listingsEl.innerHTML = byPrice.map(l => {
     const mine = account && l.seller.toLowerCase() === account.toLowerCase();
+    const dc = DCOLORS[dIdx(l.id)];
     return '<article class="deed" id="plot-' + l.id + '">' +
-      '<div class="deed-top">' +
-        '<div class="deed-title">plot ' + l.id +
-          '<span class="coords">' + coords(l.id) + ' · deed no. ' + String(l.id).padStart(4, '0') + '</span></div>' +
-        '<canvas class="deed-map" width="64" height="64" style="width:66px;height:66px" data-map="' + l.id + '"></canvas>' +
+      // survey banner: the diorama as the card's visual anchor
+      '<div class="deed-survey">' +
+        '<canvas class="deed-map" width="220" height="120" data-map="' + l.id + '"></canvas>' +
+        '<span class="deed-no">deed №&nbsp;' + String(l.id).padStart(4, '0') + '</span>' +
       '</div>' +
-      '<p class="deed-district"><i style="background:' + DCOLORS[dIdx(l.id)] + '"></i>' + districtName(l.id) + '</p>' +
-      '<dl class="deed-rows">' +
-        '<dt>streams</dt><dd>' + SYMBOLS[tokenOf(l.id)] + ' · ' + (apyOf(l.id) / 100).toFixed(2) + '% · ' + fmtEth(annualYield(l.id)) + '/yr</dd>' +
-        '<dt>seller</dt><dd><a href="' + addressUrl(l.seller) + '" target="_blank" rel="noopener">' + short(l.seller) + '</a>' + (mine ? ' · you' : '') + '</dd>' +
+      // title line
+      '<div class="deed-name">' +
+        '<h3>plot ' + l.id + '</h3>' +
+        '<span class="deed-loc">' + coords(l.id) + '</span>' +
+      '</div>' +
+      '<p class="deed-district"><i style="background:' + dc + '"></i>' + districtName(l.id) + '</p>' +
+      // ledger facts
+      '<dl class="deed-facts">' +
+        '<div><dt>streams</dt><dd>' + SYMBOLS[tokenOf(l.id)] + ' &middot; ' + (apyOf(l.id) / 100).toFixed(2) + '%</dd></div>' +
+        '<div><dt>per year</dt><dd>' + fmtEth(annualYield(l.id)) + '</dd></div>' +
+        '<div><dt>held by</dt><dd><a href="' + addressUrl(l.seller) + '" target="_blank" rel="noopener">' + short(l.seller) + '</a>' + (mine ? ' <em>· you</em>' : '') + '</dd></div>' +
       '</dl>' +
-      '<div class="deed-price"><span class="label">asking</span><span class="amount">' + fmtEth(l.price) + '</span></div>' +
-      (mine
-        ? '<button class="act cancel" data-cancel="' + l.id + '">cancel listing</button>'
-        : '<button class="act buy" data-buy="' + l.id + '" data-price="' + l.price + '">acquire this deed</button>') +
-      '<span class="deed-seal" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 6 33 13.5 20 21 7 13.5Z"/><path d="M7 13.5 20 21 20 34 7 26.5Z" opacity=".55"/><path d="M33 13.5 20 21 20 34 33 26.5Z" opacity=".35"/></svg></span>' +
+      // price + action, as one settled foot
+      '<div class="deed-foot">' +
+        '<div class="deed-ask"><span>asking</span><strong>' + fmtEth(l.price) + '</strong></div>' +
+        (mine
+          ? '<button class="act cancel" data-cancel="' + l.id + '">withdraw</button>'
+          : '<button class="act buy" data-buy="' + l.id + '" data-price="' + l.price + '">acquire<span class="arr">→</span></button>') +
+      '</div>' +
       '<p class="tx" id="tx-' + l.id + '"></p></article>';
   }).join('');
   // staggered reveal
@@ -163,15 +173,14 @@ function tickDioramas(now) {
   requestAnimationFrame(tickDioramas);
 }
 function drawDiorama({ cv, ctx, id }, t) {
-  const S = 64; // canvas px
-  if (cv.width !== S) { cv.width = S; cv.height = S; }
-  ctx.clearRect(0, 0, S, S);
-  const G = 11; // grid cells shown (a window onto the city around the plot)
+  const Wd = cv.width, Hd = cv.height;
+  ctx.clearRect(0, 0, Wd, Hd);
+  const G = 13; // grid cells shown (a window onto the city around the plot)
   const px = id % SIDE, py = (id / SIDE) | 0;
   const cx0 = Math.max(0, Math.min(SIDE - G, px - (G >> 1)));
   const cy0 = Math.max(0, Math.min(SIDE - G, py - (G >> 1)));
-  const tw = S / (G + 1), th = tw * 0.5;
-  const ox = S / 2, oy = S * 0.30;
+  const tw = Wd / (G + 1), th = tw * 0.5;
+  const ox = Wd / 2, oy = Hd * 0.24;
   const iso = (gx, gy) => [ox + (gx - gy) * tw * 0.5, oy + (gx + gy) * th * 0.5];
   for (let s = 0; s <= 2 * (G - 1); s++) {
     for (let gx = Math.max(0, s - G + 1); gx <= Math.min(G - 1, s); gx++) {
@@ -179,9 +188,9 @@ function drawDiorama({ cv, ctx, id }, t) {
       const wx = cx0 + gx, wy = cy0 + gy;
       const isPlot = wx === px && wy === py;
       const dcx = wx - 15.5, dcy = wy - 15.5, core = dcx * dcx + dcy * dcy < 64;
-      let h = 3 + ((wx * 7 + wy * 13) % 5); // deterministic block height in px
+      let h = 4 + ((wx * 7 + wy * 13) % 6); // deterministic block height in px
       let top;
-      if (isPlot) { h = 14 + Math.sin(t * 3) * 3; top = '#ffffff'; }
+      if (isPlot) { h = 20 + Math.sin(t * 2.6) * 4; top = '#ffffff'; }
       else if (core) top = 'rgba(227,198,123,0.35)';
       else top = 'rgba(120,150,195,' + (0.14 + ((wx + wy) % 2) * 0.06) + ')';
       const [x, y] = iso(gx, gy);
