@@ -126,6 +126,7 @@ function render() {
       (mine
         ? '<button class="act cancel" data-cancel="' + l.id + '">cancel listing</button>'
         : '<button class="act buy" data-buy="' + l.id + '" data-price="' + l.price + '">acquire this deed</button>') +
+      '<span class="deed-seal" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 6 33 13.5 20 21 7 13.5Z"/><path d="M7 13.5 20 21 20 34 7 26.5Z" opacity=".55"/><path d="M33 13.5 20 21 20 34 33 26.5Z" opacity=".35"/></svg></span>' +
       '<p class="tx" id="tx-' + l.id + '"></p></article>';
   }).join('');
   // staggered reveal
@@ -137,6 +138,13 @@ function render() {
 
   // who's selling
   drawSellers();
+  // the ticker
+  const track = document.querySelector('.ticker-track');
+  if (track) {
+    const items = byPrice.map(l => 'plot ' + l.id + ' <b>' + fmtEth(l.price) + '</b> · ' + districtName(l.id));
+    const line = items.join('&nbsp;&nbsp;✦&nbsp;&nbsp;');
+    track.innerHTML = line + '&nbsp;&nbsp;✦&nbsp;&nbsp;' + line; // doubled for seamless loop
+  }
 }
 
 // deed diorama: a tiny isometric city with the plot as a lit beacon tower.
@@ -256,67 +264,84 @@ listingsEl.addEventListener('click', async e => {
 loadListings().catch(err => { statusEl.textContent = 'could not read the marketplace.'; console.error(err); });
 setInterval(() => loadListings().catch(() => {}), 20000);
 
-// ---- living skyline: an animated iso strip of towers rising and settling ----
+// ---- the city at dusk: two parallax layers of skyline drifting past a warm
+// horizon glow, with a few lit windows flickering. calm, cinematic, not busy. ----
 (function skyline() {
   const cv = document.getElementById('skyline');
   if (!cv) return;
   const ctx = cv.getContext('2d');
-  let W = 0, H = 0, dpr = 1, t0 = 0;
-  const N = 46; // towers across
-  const towers = Array.from({ length: N }, (_, i) => ({
-    x: i,
-    base: 0.25 + ((Math.sin(i * 2.7) + 1) / 2) * 0.9, // deterministic heights
-    speed: 0.4 + ((i * 37) % 100) / 200,
-    phase: (i * 41) % 628 / 100,
-    gold: (i * 7) % 11 === 0, // a few gilded towers
-  }));
+  let W = 0, H = 0, dpr = 1;
+  // a repeating band of buildings, generated deterministically
+  function band(seed, count, minH, maxH) {
+    const b = [];
+    let x = 0;
+    for (let i = 0; i < count; i++) {
+      const r = Math.abs(Math.sin((i + 1) * seed * 12.9898)) % 1;
+      const w = 10 + r * 26;
+      const h = minH + Math.abs(Math.sin((i + 1) * seed * 4.1)) * (maxH - minH);
+      const gold = (i * 3 + Math.floor(seed * 7)) % 17 === 0;
+      b.push({ x, w, h, gold, windows: Math.floor(h / 14) });
+      x += w + 4;
+    }
+    return { blocks: b, width: x };
+  }
+  const far = band(1.7, 40, 26, 70);
+  const near = band(3.3, 30, 40, 108);
+
   function fit() {
     W = cv.clientWidth; H = cv.clientHeight;
     dpr = Math.min(window.devicePixelRatio || 1, 2);
     cv.width = W * dpr; cv.height = H * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
-  // iso projection helpers
-  function draw(now) {
-    if (!t0) t0 = now;
-    const time = (now - t0) / 1000;
-    ctx.clearRect(0, 0, W, H);
-    const tw = W / (N * 0.62); // tile width
-    const th = tw * 0.5;
-    const ox = tw * 0.5, oy = H - th * 2.2;
-    for (let i = 0; i < N; i++) {
-      const tk = towers[i];
-      // breathe: height eases up and down over time
-      const wobble = (Math.sin(time * tk.speed + tk.phase) + 1) / 2;
-      const h = (tk.base + wobble * 0.5) * th * 3.4;
-      const sx = ox + i * tw * 0.6;
-      const sy = oy - i * 0.0; // flat baseline, towers march right
-      prismTop(ctx, sx, sy, tw, th, h, tk.gold, wobble);
+  function drawBand(layer, speed, time, baseY, faceLo, faceHi, capCol) {
+    const off = (time * speed) % layer.width;
+    for (let pass = -1; pass <= Math.ceil(W / layer.width) + 1; pass++) {
+      const shiftX = pass * layer.width - off;
+      for (const blk of layer.blocks) {
+        const x = shiftX + blk.x;
+        if (x + blk.w < -40 || x > W + 40) continue;
+        const y = baseY - blk.h;
+        // body
+        const g = ctx.createLinearGradient(0, y, 0, baseY);
+        g.addColorStop(0, blk.gold ? faceHi.g : faceHi.n);
+        g.addColorStop(1, blk.gold ? faceLo.g : faceLo.n);
+        ctx.fillStyle = g;
+        ctx.fillRect(x, y, blk.w, blk.h);
+        // roof cap line
+        ctx.fillStyle = blk.gold ? capCol.g : capCol.n;
+        ctx.fillRect(x, y, blk.w, 2);
+        // a couple of warm lit windows, flickering slowly
+        for (let wnd = 0; wnd < blk.windows; wnd++) {
+          const wy = y + 8 + wnd * 12;
+          const flick = Math.sin(time * 0.7 + blk.x + wnd * 2) > 0.4;
+          if (!flick) continue;
+          ctx.fillStyle = 'rgba(240,210,140,0.5)';
+          ctx.fillRect(x + blk.w * 0.28, wy, 3, 4);
+          if (blk.w > 22) ctx.fillRect(x + blk.w * 0.62, wy, 3, 4);
+        }
+      }
     }
-    requestAnimationFrame(draw);
   }
-  function prismTop(ctx, sx, sy, tw, th, h, gold, lit) {
-    const hw = tw * 0.42, hh = th * 0.42;
-    const topY = sy - h;
-    // left face
-    ctx.beginPath();
-    ctx.moveTo(sx - hw, sy - hh); ctx.lineTo(sx - hw, topY - hh);
-    ctx.lineTo(sx, topY); ctx.lineTo(sx, sy); ctx.closePath();
-    ctx.fillStyle = gold ? 'rgba(150,120,50,0.55)' : 'rgba(40,70,115,0.55)';
-    ctx.fill();
-    // right face
-    ctx.beginPath();
-    ctx.moveTo(sx + hw, sy - hh); ctx.lineTo(sx + hw, topY - hh);
-    ctx.lineTo(sx, topY); ctx.lineTo(sx, sy); ctx.closePath();
-    ctx.fillStyle = gold ? 'rgba(110,88,36,0.5)' : 'rgba(28,52,88,0.5)';
-    ctx.fill();
-    // top cap, brightens as it rises
-    const a = 0.4 + lit * 0.5;
-    ctx.beginPath();
-    ctx.moveTo(sx, topY); ctx.lineTo(sx + hw, topY - hh);
-    ctx.lineTo(sx, topY - hh * 2); ctx.lineTo(sx - hw, topY - hh); ctx.closePath();
-    ctx.fillStyle = gold ? `rgba(227,198,123,${a})` : `rgba(140,175,215,${a * 0.7})`;
-    ctx.fill();
+  function draw(now) {
+    const time = now / 1000;
+    ctx.clearRect(0, 0, W, H);
+    // dusk horizon glow
+    const glow = ctx.createRadialGradient(W * 0.5, H, 0, W * 0.5, H, W * 0.55);
+    glow.addColorStop(0, 'rgba(140,110,70,0.30)');
+    glow.addColorStop(0.5, 'rgba(60,70,110,0.14)');
+    glow.addColorStop(1, 'rgba(12,35,64,0)');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+    // far layer (slow, dim), then near (faster, sharper)
+    drawBand(far, 6, time, H - 6,
+      { n: 'rgba(24,44,76,0.7)', g: 'rgba(90,74,40,0.6)' },
+      { n: 'rgba(40,64,104,0.7)', g: 'rgba(150,120,60,0.6)' },
+      { n: 'rgba(70,100,150,0.5)', g: 'rgba(210,180,110,0.6)' });
+    drawBand(near, 16, time, H,
+      { n: 'rgba(16,34,62,0.92)', g: 'rgba(70,56,28,0.9)' },
+      { n: 'rgba(30,54,92,0.92)', g: 'rgba(130,104,50,0.9)' },
+      { n: 'rgba(90,120,170,0.7)', g: 'rgba(227,198,123,0.9)' });
+    requestAnimationFrame(draw);
   }
   fit(); requestAnimationFrame(draw);
   window.addEventListener('resize', fit);

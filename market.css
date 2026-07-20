@@ -120,3 +120,40 @@
   #skyline { display: none; }
   .deed.deal-in, .deed-price .amount { animation: none; }
 }
+
+/* ---- refinements: dusk skyline, ticker, wax seal, blueprint ---- */
+#skyline { height: 150px; margin: 0.5rem 0 0; opacity: 1;
+  mask-image: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent); }
+
+.ticker { overflow: hidden; border-top: 1px solid rgba(140,170,210,0.14);
+  border-bottom: 1px solid rgba(140,170,210,0.14); padding: 0.55rem 0; margin: 0 0 3rem;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+.ticker-track { display: inline-block; white-space: nowrap; will-change: transform;
+  animation: ticker 42s linear infinite; font-size: 0.8rem; color: #9db8d6; letter-spacing: 0.03em; }
+.ticker-track b { color: #e3c67b; font-weight: 400; }
+.ticker:hover .ticker-track { animation-play-state: paused; }
+@keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+/* faint blueprint grid behind the whole page */
+.market-page { position: relative; }
+.market-page::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image: linear-gradient(rgba(140,170,210,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(140,170,210,0.035) 1px, transparent 1px);
+  background-size: 44px 44px; mask-image: radial-gradient(circle at 50% 30%, #000, transparent 80%); }
+
+/* wax seal on each deed */
+.deed { overflow: hidden; }
+.deed-seal { position: absolute; right: 0.6rem; bottom: 0.55rem; width: 30px; height: 30px; opacity: 0.5;
+  transition: opacity 0.3s, transform 0.3s; }
+.deed-seal svg { width: 100%; height: 100%; fill: #e3c67b; display: block; }
+.deed:hover .deed-seal { opacity: 0.9; transform: rotate(-8deg) scale(1.08); }
+
+/* tighter, cleaner deed cards */
+.deed { padding: 1.15rem 1.25rem 1.3rem; background: linear-gradient(160deg, rgba(18,42,76,0.6), rgba(12,32,60,0.55)); }
+.deed-title { font-size: 1.7rem; }
+.deed-price { border-top: 1px solid rgba(140,170,210,0.12); padding-top: 0.75rem; }
+.deed-price .amount { font-size: 1.75rem; }
+
+/* section headers get a hairline flourish */
+.ledger-block h2, .registry-head h1 { position: relative; }
