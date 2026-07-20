@@ -33,8 +33,8 @@ const ACCESS_HANDLE_URL = 'https://x.com/Utopiadet';
 // Google Apps Script destination for automatic Sheet collection
 const ACCESS_WEBHOOK = 'https://script.google.com/macros/s/AKfycbxCTc6Njp2nRwfXo2t5SbH0jE-Ft9sV0LuQpCG-04ByPlXj1KCWneCp3BJtjjlxXHQP_w/exec';
 const ACCESS_PENDING_COPY = 'setting up access for this wallet — takes about a minute. the buy button will appear on its own.';
-const ELIGIBILITY_POLL_MS = 15000;
-const ACCESS_POLL_MS = 5000;
+const ELIGIBILITY_POLL_MS = 30000;
+const ACCESS_POLL_MS = 10000;
 const ACCESS_POLL_WINDOW_MS = 3 * 60 * 1000;
 const CLAIMED_TOPIC = '0x3e356ee9071ea983e847cc7da7b8b224b8f44262f7c9ce77262ea0e854a5442c';
 
@@ -1283,8 +1283,8 @@ if (fine) {
 
 // ---- lifecycle ----
 
-setInterval(() => { if (loaded && !document.hidden) refreshOwnership().catch(() => {}); }, 10000);
-setInterval(() => { if (loaded && !document.hidden && account) refreshClaimables().catch(() => {}); }, 10000);
+setInterval(() => { if (loaded && !document.hidden) refreshOwnership().catch(() => {}); }, 25000);
+setInterval(() => { if (loaded && !document.hidden && account) refreshClaimables().catch(() => {}); }, 30000);
 // codex: one scheduler accelerates pending access without overlapping the
 // normal refresh or leaving an open dashboard blocked after enrollment.
 scheduleEligibilityPoll(ELIGIBILITY_POLL_MS);
