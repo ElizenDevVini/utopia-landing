@@ -2,11 +2,11 @@
 // deployment, provider, reserves, and eligibility flow are configured.
 
 import {
-  createPublicClient, createWalletClient, custom, http,
+  createPublicClient, createWalletClient, custom,
   defineChain, parseAbi, keccak256, encodePacked,
-} from './vendor/viem.js?v=12';
-import { BG, TOPS, HOVER_TOP, CLAIMED_TOP, IN, hash, prism, makeTip } from './iso.js?v=12';
-import { addressUrl, MULTICALL3, NET, withNetwork } from './config.js?v=12';
+} from './vendor/viem.js?v=13';
+import { BG, TOPS, HOVER_TOP, CLAIMED_TOP, IN, hash, prism, makeTip } from './iso.js?v=13';
+import { addressUrl, MULTICALL3, NET, resilientReadTransport, withNetwork } from './config.js?v=13';
 
 const LAND = NET.land;
 const UTOP = NET.utop;
@@ -16,6 +16,7 @@ const PLOTS = 1024;
 const SYMBOLS = NET.symbols;
 const MINE_TOP = '#ffffff';
 const WAD = 10n ** 18n;
+const YEAR_SECONDS = 365n * 24n * 60n * 60n;
 const MAX_CLAIM_BATCH = 64;
 // per-wallet purchase cap, enforced by the site (the next contract enforces it
 // on-chain). Wallets already over the cap keep what they have; they just can't add
@@ -135,7 +136,7 @@ const erc20Abi = parseAbi([
 const pub = createPublicClient({
   chain,
   batch: { multicall: { wait: 16, batchSize: 4096 } },
-  transport: http(NET.rpc, { retryCount: 1, timeout: 7000 }),
+  transport: resilientReadTransport(custom),
 });
 
 const canvas = document.getElementById('land');
@@ -224,9 +225,36 @@ function tokenAvailable(idx) {
   const com = treasuryCommitted?.[idx] ?? 0n;
   return bal > com ? bal - com : 0n;
 }
+
+// codex: reserve dust is not enough to sell a plot. Mirror the deployed
+// contract's maxRewardForSale calculation so only purchases that can reserve
+// their full remaining reward obligation are presented as buyable.
+function reserveRequiredForSale(id) {
+  if (NET.landVersion !== 4 || !rates || !rewardEnd || !basePrices) return null;
+  const remaining = BigInt(rewardEnd) - BigInt(Math.floor(Date.now() / 1000));
+  if (remaining <= 0n) return null;
+  const annualizedPayment = (basePrices[id] * BigInt(apys[id]) * remaining) / (10000n * YEAR_SECONDS);
+  return (annualizedPayment * rates[tokIdx[id]]) / WAD;
+}
+
+function reserveCoversPlot(id) {
+  if (NET.landVersion === 4 && rewardEnd && BigInt(rewardEnd) <= BigInt(Math.floor(Date.now() / 1000))) return false;
+  const available = tokenAvailable(tokIdx[id]);
+  if (available == null) return null;
+  const required = reserveRequiredForSale(id);
+  return required == null ? available > 0n : available >= required;
+}
+
 function fundedTokenNames() {
   const out = [];
-  for (let i = 0; i < 5; i++) { const a = tokenAvailable(i); if (a && a > 0n) out.push(SYMBOLS[i]); }
+  for (let i = 0; i < 5; i++) {
+    for (let id = 0; id < PLOTS; id++) {
+      if (!owned[id] && tokIdx[id] === i && reserveCoversPlot(id) === true) {
+        out.push(SYMBOLS[i]);
+        break;
+      }
+    }
+  }
   return out;
 }
 
@@ -824,8 +852,7 @@ function renderSel() {
       return;
     }
     // this plot's reward token must have reserve, or the buy reverts on-chain
-    const avail = tokenAvailable(tokIdx[id]);
-    const unfunded = avail != null && avail <= 0n;
+    const unfunded = reserveCoversPlot(id) === false;
     // only hard-block when eligibility is *confirmed* false; an unknown/failed
     // read must not hide the buy button from an actually-eligible wallet
     const needsAccess = account && NET.requiresEligibility && accountEligible === false;
@@ -1165,7 +1192,7 @@ function renderMarket() {
   if (!basePrices) return;
   // only suggest plots whose reward token is actually funded (buyable); fall
   // back to any open plot before treasury data loads
-  const buyable = id => { const a = tokenAvailable(tokIdx[id]); return a == null || a > 0n; };
+  const buyable = id => reserveCoversPlot(id) !== false;
   let cheapest = -1;
   let bestApy = -1;
   for (let i = 0; i < PLOTS; i++) {

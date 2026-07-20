@@ -88,3 +88,10 @@ Robinhood Stock Tokens that appear in the same wallet.
 - Verify both frontend eight-plot guards and a live headless eligible-wallet dashboard with no signing or webhook mutation.
 - Change only cache-busting query tags, keep shared tags synchronized, run JavaScript syntax checks, and commit the intended files on `main`.
 - Never sign, broadcast, deploy, move funds, or alter contract/frontend logic.
+
+## Codex buyer accessibility — 2026-07-20
+
+- Keep the live dashboard readable when the caching proxy is unavailable by failing read-only calls over to the official RPC after a short timeout.
+- Present a plot as buyable only when its uncommitted Stock Token reserve covers that plot's full remaining reward obligation.
+- Preserve automatic access, eligibility enforcement, the eight-plot cap, transaction simulation, contracts, and wallet-side official RPC behavior.
+- Verify with the proxy blocked, an impersonated eligible wallet, real chain state, and no webhook, signature, or transaction method.

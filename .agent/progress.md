@@ -98,3 +98,10 @@
 - Done: synchronized the requested cache tags to `v=12`; JavaScript syntax and diff checks pass.
 - Next: commit the intended tracked files and push only from the otherwise-clean `main` worktree.
 - Safety: no signing, transaction broadcast, funds, contract changes, webhook writes, or frontend logic changes occurred.
+
+## Codex buyer accessibility — 2026-07-20
+
+- Done: browser read fallback with a three-second proxy timeout and one-minute circuit breaker.
+- Done: exact per-plot reserve coverage gate in selection and market suggestions.
+- Verified: proxy-blocked live-chain browser smoke showed real AAPL buys, blocked underfunded TSLA/MSFT plots, and zero exceptions or mutation methods.
+- Next: commit the isolated `main` worktree, push, and verify Render serves cache tag `v=13`.

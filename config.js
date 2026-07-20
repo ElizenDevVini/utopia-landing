@@ -47,3 +47,48 @@ export function addressUrl(address) {
 export function withNetwork(path) {
   return path;
 }
+
+// codex: prefer the caching proxy, but fail read-only JSON-RPC calls over to
+// the official endpoint when Render is asleep or unhealthy. The short circuit
+// breaker keeps a proxy outage from adding a timeout to every dashboard read.
+export function resilientReadTransport(customTransport) {
+  let proxyUnavailableUntil = 0;
+  let requestId = 0;
+
+  async function rpc(url, method, params, timeoutMs) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: ++requestId, method, params: params || [] }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`rpc http ${response.status}`);
+      const body = await response.json();
+      if (body.error) {
+        const error = new Error(body.error.message || 'rpc request failed');
+        error.code = body.error.code;
+        error.data = body.error.data;
+        throw error;
+      }
+      return body.result;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  return customTransport({
+    async request({ method, params }) {
+      if (Date.now() >= proxyUnavailableUntil) {
+        try {
+          return await rpc(NET.rpc, method, params, 3_000);
+        } catch {
+          proxyUnavailableUntil = Date.now() + 60_000;
+        }
+      }
+      return rpc(NET.walletRpc || NET.rpc, method, params, 10_000);
+    },
+  }, { retryCount: 0 });
+}
