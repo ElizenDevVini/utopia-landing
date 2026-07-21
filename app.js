@@ -418,42 +418,39 @@ function render() {
   if (DEMO_SKYLINE) drawSkylineLabels();
 }
 
-// building names float above owner-customized plots. names are nudged upward
-// when they would collide so a dense cluster reads as a stack, not a smear.
+// building names sit directly above their own rooftop. When two would
+// overlap, the nearer building keeps its name and the other is skipped —
+// never nudged somewhere it no longer points at anything.
 function drawBuildingLabels() {
   const labels = [];
   for (let id = 0; id < PLOTS; id++) {
     const c = builds[id];
     if (!c || !c.name) continue;
     const x = id % SIDE, y = (id / SIDE) | 0;
-    const [sx, sy] = proj(x + 0.5, y + 0.5, zOf(id) + 0.5);
+    const [sx, sy] = proj(x + 0.5, y + 0.5, zOf(id) + 0.6);
     labels.push({ name: c.name, sx, sy, order: depth[id] });
   }
   if (!labels.length) return;
   ctx.save();
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  const fs = Math.max(10, view.s * 0.7);
+  ctx.textBaseline = 'bottom';
+  const fs = Math.max(10, Math.min(26, view.s * 0.7));
   ctx.font = '600 ' + fs + "px 'Archivo', sans-serif";
   ctx.lineJoin = 'round';
   ctx.lineWidth = Math.max(2, fs * 0.22);
-  const lineH = fs * 1.2;
-  // front rows (higher x+y) placed last so they win the readable slot up top
-  labels.sort((a, b) => a.order - b.order);
+  const lineH = fs * 1.15;
+  // nearest buildings claim their spot first
+  labels.sort((a, b) => b.order - a.order);
   const placed = [];
   for (const L of labels) {
     const w = ctx.measureText(L.name).width;
-    let ty = L.sy;
-    for (let i = 0; i < 40; i++) {
-      const clash = placed.some(p => Math.abs(p.x - L.sx) < (p.w + w) / 2 + 4 && Math.abs(p.y - ty) < lineH);
-      if (!clash) break;
-      ty -= lineH;
-    }
-    placed.push({ x: L.sx, y: ty, w });
+    const clash = placed.some(p => Math.abs(p.x - L.sx) < (p.w + w) / 2 + 4 && Math.abs(p.y - L.sy) < lineH);
+    if (clash) continue;
+    placed.push({ x: L.sx, y: L.sy, w });
     ctx.strokeStyle = 'rgba(8,24,44,0.92)';
-    ctx.strokeText(L.name, L.sx, ty);
+    ctx.strokeText(L.name, L.sx, L.sy);
     ctx.fillStyle = '#f2f7fd';
-    ctx.fillText(L.name, L.sx, ty);
+    ctx.fillText(L.name, L.sx, L.sy);
   }
   ctx.restore();
 }
@@ -477,7 +474,7 @@ function drawDistrictLabels() {
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = "600 " + Math.max(11, view.s * 0.88) + "px 'Instrument Serif', serif";
+  ctx.font = "600 " + Math.max(11, Math.min(30, view.s * 0.88)) + "px 'Instrument Serif', serif";
   for (let i = 0; i < DISTRICTS.length; i++) {
     const [sx, sy] = proj(DISTRICT_CENTROIDS[i][0], DISTRICT_CENTROIDS[i][1], 1.6);
     ctx.fillStyle = 'rgba(12,35,64,0.85)';
