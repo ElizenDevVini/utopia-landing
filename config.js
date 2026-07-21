@@ -1,5 +1,6 @@
 // Live on Robinhood Chain mainnet. A host may override via
-// window.UTOPIA_RUNTIME = { rpcUrl, landAddress } before modules load.
+// window.UTOPIA_RUNTIME = { rpcUrl, landAddress, stockSwapAddress,
+// agentVaultAddress } before modules load.
 export const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11';
 
 const active = {
@@ -13,6 +14,8 @@ const active = {
   explorer: 'https://robinhoodchain.blockscout.com',
   land: '0xb93Ee2B0996C3a0577eC4E3a776D81D4E4FCbed2',
   buildings: '0x94Cb161B86D78bB80d0B7054f8671328769fe960',
+  stockSwap: '',
+  agentVault: '',
   utop: '',
   symbols: ['TSLA', 'AAPL', 'NVDA', 'MSFT', 'AMZN'],
   landVersion: 4,
@@ -33,11 +36,15 @@ export const NETWORKS = { mainnet: active };
 const runtime = globalThis.UTOPIA_RUNTIME || {};
 const rpc = runtime.rpcUrl || active.rpc;
 const land = runtime.landAddress || active.land;
+const stockSwap = runtime.stockSwapAddress || active.stockSwap;
+const agentVault = runtime.agentVaultAddress || active.agentVault;
 
 export const NET = Object.freeze({
   ...active,
   rpc,
   land,
+  stockSwap,
+  agentVault,
   ready: Boolean(land),
   activationIssue: land ? '' : 'contract address pending',
 });

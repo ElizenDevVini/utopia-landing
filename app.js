@@ -10,6 +10,7 @@ import { addressUrl, MULTICALL3, NET, resilientReadTransport, withNetwork } from
 
 const LAND = NET.land;
 const UTOP = NET.utop;
+const AGENT_VAULT = NET.agentVault;
 const EXPLORER = NET.explorer;
 const SIDE = 32;
 const PLOTS = 1024;
@@ -131,6 +132,7 @@ const abi = parseAbi([
   'function totalCommittedByToken(uint256) view returns (uint256)',
   'function rewardEnd() view returns (uint64)',
   'function isEligible(address) view returns (bool)',
+  'function ownerOf(uint256) view returns (address)',
 ]);
 
 const erc20Abi = parseAbi([
@@ -140,6 +142,22 @@ const erc20Abi = parseAbi([
   'function approve(address,uint256) returns (bool)',
   'function faucet()',
 ]);
+
+const agentVaultAbi = parseAbi([
+  'function activate(uint16[5])',
+  'function deposit(uint256,uint256)',
+  'function withdraw(uint256,uint256,address)',
+  'function rebalance(address)',
+  'function agentOf(address) view returns (bool,uint16[5],uint64,uint256[5],uint256[5],uint256)',
+  'function COOLDOWN() view returns (uint256)',
+]);
+const AGENT_CACHE_TTL_MS = 30_000;
+const AGENT_PRESETS = {
+  steady: [2000, 2000, 2000, 2000, 2000],
+  silicon: [1500, 1500, 4000, 1500, 1500],
+};
+const agentCache = new Map(); // lowercase owner -> { at, state }
+let agentCooldown = null;
 
 // ---- building customization (UtopiaBuildings) ----
 // owners paint/name/shape their plot; the map renders it. Free for plot owners.
@@ -303,6 +321,67 @@ function fmtTok(wei, idx) {
   const n = Number(wei) / 1e18;
   const s = n === 0 ? '0' : n < 1e-6 ? n.toExponential(2) : parseFloat(n.toFixed(8)).toString();
   return s + ' ' + SYMBOLS[idx];
+}
+
+function sameAddress(a, b) {
+  return Boolean(a && b && a.toLowerCase() === b.toLowerCase());
+}
+
+function fmtAgentEth(wei) {
+  const n = Number(wei) / 1e18;
+  const s = n === 0 ? '0' : n < 1e-6 ? n.toExponential(2) : parseFloat(n.toFixed(8)).toString();
+  return s + ' ETH';
+}
+
+function parseAgentAmount(value) {
+  const text = value.trim();
+  if (!/^(?:\d+(?:\.\d{0,18})?|\.\d{1,18})$/.test(text)) throw new Error('enter a valid token amount');
+  const [whole, fraction = ''] = text.split('.');
+  const amount = BigInt(whole || 0) * WAD + BigInt((fraction + '0'.repeat(18)).slice(0, 18));
+  if (amount <= 0n) throw new Error('amount must be greater than zero');
+  return amount;
+}
+
+function relativeRebalanceTime(timestamp) {
+  const at = Number(timestamp);
+  if (!at) return 'never';
+  const seconds = Math.max(0, Math.floor(Date.now() / 1000) - at);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+  if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+  return Math.floor(seconds / 86400) + 'd ago';
+}
+
+function normalizeAgentState(result) {
+  return {
+    active: result[0],
+    targetBps: Array.from(result[1], Number),
+    lastRebalance: BigInt(result[2]),
+    balances: Array.from(result[3], BigInt),
+    ethValues: Array.from(result[4], BigInt),
+    totalEthValue: BigInt(result[5]),
+  };
+}
+
+async function readAgent(owner, force = false) {
+  const key = owner.toLowerCase();
+  const cached = agentCache.get(key);
+  if (!force && cached && Date.now() - cached.at < AGENT_CACHE_TTL_MS) return cached.state;
+  const result = await pub.readContract({
+    address: AGENT_VAULT, abi: agentVaultAbi, functionName: 'agentOf', args: [owner],
+  });
+  const state = normalizeAgentState(result);
+  agentCache.set(key, { at: Date.now(), state });
+  return state;
+}
+
+async function readAgentCooldown() {
+  if (agentCooldown == null) {
+    agentCooldown = await pub.readContract({
+      address: AGENT_VAULT, abi: agentVaultAbi, functionName: 'COOLDOWN',
+    });
+  }
+  return agentCooldown;
 }
 
 function short(addr) {
@@ -1060,6 +1139,124 @@ function plotUrl(id) {
   return u.toString();
 }
 
+function strategyTargets(id, key) {
+  if (key === 'silicon') return AGENT_PRESETS.silicon;
+  if (key === 'district') {
+    const targets = [0, 0, 0, 0, 0];
+    targets[tokIdx[id]] = 10000;
+    return targets;
+  }
+  return AGENT_PRESETS.steady;
+}
+
+function strategyOptionsHtml(id, targets = null) {
+  const options = [
+    ['steady', 'steady city'],
+    ['silicon', 'silicon core'],
+    ['district', 'this district'],
+  ];
+  const selectedKey = targets
+    ? options.find(([key]) => strategyTargets(id, key).every((value, i) => value === targets[i]))?.[0]
+    : 'steady';
+  return options.map(([key, label]) =>
+    '<option value="' + key + '"' + (key === selectedKey ? ' selected' : '') + '>' + label + '</option>'
+  ).join('');
+}
+
+function fmtAgentPct(bps) {
+  return parseFloat((bps / 100).toFixed(2)).toString() + '%';
+}
+
+function agentBarsHtml(state) {
+  const total = state.totalEthValue;
+  const rows = SYMBOLS.map((symbol, i) => {
+    const currentBps = total > 0n ? Number((state.ethValues[i] * 10000n) / total) : 0;
+    const targetBps = state.targetBps[i];
+    const balance = fmtTok(state.balances[i], i).replace(' ' + symbol, '');
+    return '<div class="agent-bar-row">' +
+      '<div class="agent-bar-head"><span>' + symbol + '</span><span>' + balance + ' · ' +
+        fmtAgentPct(currentBps) + ' / ' + fmtAgentPct(targetBps) + '</span></div>' +
+      '<div class="agent-track"><span class="agent-fill" style="width:' + (currentBps / 100) + '%"></span>' +
+        '<span class="agent-target" style="left:' + (targetBps / 100) + '%"></span></div>' +
+    '</div>';
+  }).join('');
+  return '<div class="agent-bars">' + rows + '</div>' +
+    '<div class="row"><span class="k">total value</span><span class="v">' + fmtAgentEth(total) + '</span></div>' +
+    '<div class="row"><span class="k">last rebalance</span><span class="v">' +
+      relativeRebalanceTime(state.lastRebalance) + '</span></div>';
+}
+
+function agentTokenOptionsHtml() {
+  return SYMBOLS.map((symbol, i) => '<option value="' + i + '">' + symbol + '</option>').join('');
+}
+
+function agentOwnerHtml(id, owner, state, cooldown) {
+  const strategy = '<select class="agent-strategy" aria-label="agent strategy">' +
+    strategyOptionsHtml(id, state.active ? state.targetBps : null) + '</select>';
+  const bodyStart = '<details class="build-panel agent-panel"><summary>plot agent</summary>' +
+    '<div class="agent-body" data-agent-plot="' + id + '" data-agent-owner="' + owner + '">';
+  if (!state.active) {
+    return bodyStart + '<div class="agent-row agent-strategy-row">' + strategy +
+      '<button data-agent-action="activate">activate agent</button></div></div></details>';
+  }
+
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  const availableAt = cooldown == null ? null : state.lastRebalance + cooldown;
+  const cooldownSeconds = availableAt != null && availableAt > now ? availableAt - now : 0n;
+  const rebalanceLabel = cooldown == null
+    ? 'rebalance unavailable'
+    : cooldownSeconds > 0n
+    ? 'rebalance available in ' + Math.ceil(Number(cooldownSeconds) / 60) + 'm'
+    : 'rebalance now';
+  const tokens = agentTokenOptionsHtml();
+  return bodyStart + agentBarsHtml(state) +
+    '<div class="agent-row"><select class="agent-deposit-token" aria-label="deposit token">' + tokens + '</select>' +
+      '<input class="agent-deposit-amount" inputmode="decimal" placeholder="amount" aria-label="deposit amount">' +
+      '<button data-agent-action="deposit">deposit</button></div>' +
+    '<div class="agent-row"><select class="agent-withdraw-token" aria-label="withdraw token">' + tokens + '</select>' +
+      '<input class="agent-withdraw-amount" inputmode="decimal" placeholder="amount" aria-label="withdraw amount">' +
+      '<button data-agent-action="withdraw">withdraw</button></div>' +
+    '<div class="agent-row agent-strategy-row">' + strategy +
+      '<button data-agent-action="activate">update strategy</button></div>' +
+    '<button class="agent-rebalance" data-agent-action="rebalance"' +
+      (cooldown == null || cooldownSeconds > 0n ? ' disabled' : '') + '>' + rebalanceLabel + '</button>' +
+    '</div></details>';
+}
+
+function plotAgentSlotHtml(id) {
+  return AGENT_VAULT && currentOwned[id]
+    ? '<div class="plot-agent-slot" data-agent-plot="' + id + '"><p class="quiet-note">reading plot agent…</p></div>'
+    : '';
+}
+
+async function hydratePlotAgent(id, force = false) {
+  if (!AGENT_VAULT || !currentOwned[id]) return;
+  const slot = selEl.querySelector('.plot-agent-slot[data-agent-plot="' + id + '"]');
+  if (!slot) return;
+  try {
+    const owner = await pub.readContract({
+      address: LAND, abi, functionName: 'ownerOf', args: [BigInt(id)],
+    });
+    const state = await readAgent(owner, force);
+    if (!slot.isConnected || selected !== id) return;
+    const isOwner = Boolean(currentMine[id] && mine[id] && sameAddress(account, owner));
+    if (!state.active && !isOwner) {
+      slot.remove();
+      return;
+    }
+    const cooldown = state.active && isOwner ? await readAgentCooldown().catch(() => null) : 0n;
+    if (!slot.isConnected || selected !== id) return;
+    slot.innerHTML = isOwner
+      ? agentOwnerHtml(id, owner, state, cooldown)
+      : '<div class="agent-panel agent-readonly"><p class="agent-title">plot agent</p>' +
+        agentBarsHtml(state) + '</div>';
+  } catch {
+    if (slot.isConnected && selected === id) {
+      slot.innerHTML = '<p class="quiet-note">plot agent unavailable.</p>';
+    }
+  }
+}
+
 function renderSel() {
   renderSelBody();
   if (selected >= 0 && loaded) {
@@ -1135,13 +1332,17 @@ function renderSelBody() {
       '<button id="act" data-act="claim"' + (blocked ? ' disabled' : '') + '>' +
       (blocked ? 'eligibility required to claim' : 'claim rewards') + '</button>' +
       (blocked ? '<p><a href="#" id="reqaccess">setting up access…</a></p><p class="quiet-note">' + ACCESS_PENDING_COPY + '</p>' : '') +
+      plotAgentSlotHtml(id) +
       // The building contract checks ownership on the current land contract;
       // legacy deeds remain visible but cannot customize through this panel.
       (BUILDINGS && currentMine[id] ? buildFormHtml(id) : '') +
       '<p class="txstate"></p>';
+    hydratePlotAgent(id);
   } else {
     selEl.innerHTML = '<h3>plot ' + id + ' ' + coords(id) + ' · owned</h3>' + rows +
-      '<p><a href="' + EXPLORER + '/token/' + LAND + '/instance/' + id + '" target="_blank" rel="noopener">deed on the explorer</a></p>';
+      '<p><a href="' + EXPLORER + '/token/' + LAND + '/instance/' + id + '" target="_blank" rel="noopener">deed on the explorer</a></p>' +
+      plotAgentSlotHtml(id);
+    hydratePlotAgent(id);
   }
 }
 
@@ -1358,6 +1559,8 @@ selEl.addEventListener('click', e => {
   }
   const build = e.target.closest('.build-go');
   if (build) { e.preventDefault(); submitBuilding(Number(build.dataset.build), build); return; }
+  const agentAction = e.target.closest('[data-agent-action]');
+  if (agentAction) { e.preventDefault(); submitPlotAgent(agentAction.dataset.agentAction, agentAction); return; }
   const btn = e.target.closest('#act');
   if (btn && selected >= 0) doTx(btn.dataset.act, [selected], btn);
 });
@@ -1397,6 +1600,94 @@ async function submitBuilding(id, btn) {
     if (btn) btn.disabled = false;
     const m = (err?.shortMessage || err?.message || 'failed').split('\n')[0];
     txState(m.toLowerCase().slice(0, 160), selEl);
+  }
+}
+
+async function writeAgentTransaction(wallet, requestConfig, action) {
+  const { request } = await pub.simulateContract({ ...requestConfig, account });
+  const hash_ = await wallet.writeContract(request);
+  txPending(hash_, selEl);
+  const receipt = await pub.waitForTransactionReceipt({ hash: hash_ });
+  requireSuccessfulReceipt(receipt, action);
+}
+
+async function submitPlotAgent(action, btn) {
+  const body = btn.closest('.agent-body');
+  if (!body || !AGENT_VAULT) return;
+  const id = Number(body.dataset.agentPlot);
+  const owner = body.dataset.agentOwner;
+  try {
+    let tokenIndex = null;
+    let amount = null;
+    let targets = null;
+    if (action === 'activate') {
+      targets = strategyTargets(id, body.querySelector('.agent-strategy').value);
+    } else if (action === 'deposit') {
+      tokenIndex = Number(body.querySelector('.agent-deposit-token').value);
+      amount = parseAgentAmount(body.querySelector('.agent-deposit-amount').value);
+    } else if (action === 'withdraw') {
+      tokenIndex = Number(body.querySelector('.agent-withdraw-token').value);
+      amount = parseAgentAmount(body.querySelector('.agent-withdraw-amount').value);
+    }
+
+    if (!currentMine[id] || !mine[id] || !sameAddress(account, owner)) {
+      txState('only the current plot owner can manage this agent.', selEl);
+      return;
+    }
+    const wallet = await connect({ prompt: !account });
+    if (!wallet) return;
+    if (!currentMine[id] || !mine[id] || !sameAddress(account, owner)) {
+      txState('only the current plot owner can manage this agent.', selEl);
+      return;
+    }
+    btn.disabled = true;
+
+    let success;
+    if (action === 'activate') {
+      txState('confirm the strategy in your wallet…', selEl);
+      await writeAgentTransaction(wallet, {
+        address: AGENT_VAULT, abi: agentVaultAbi, functionName: 'activate', args: [targets],
+      }, 'agent activation');
+      success = 'plot agent strategy active.';
+    } else if (action === 'deposit') {
+      const token = tokenAddresses?.[tokenIndex] || await pub.readContract({
+        address: LAND, abi, functionName: 'tokens', args: [BigInt(tokenIndex)],
+      });
+      txState('step 1 of 2 · approve exact ' + SYMBOLS[tokenIndex] + ' amount…', selEl);
+      await writeAgentTransaction(wallet, {
+        address: token, abi: erc20Abi, functionName: 'approve', args: [AGENT_VAULT, amount],
+      }, 'approval');
+      txState('step 2 of 2 · confirm the deposit…', selEl);
+      await writeAgentTransaction(wallet, {
+        address: AGENT_VAULT, abi: agentVaultAbi, functionName: 'deposit',
+        args: [BigInt(tokenIndex), amount],
+      }, 'deposit');
+      success = 'deposit confirmed.';
+    } else if (action === 'withdraw') {
+      txState('confirm the withdrawal in your wallet…', selEl);
+      await writeAgentTransaction(wallet, {
+        address: AGENT_VAULT, abi: agentVaultAbi, functionName: 'withdraw',
+        args: [BigInt(tokenIndex), amount, account],
+      }, 'withdrawal');
+      success = 'withdrawal confirmed.';
+    } else if (action === 'rebalance') {
+      txState('confirm the rebalance in your wallet…', selEl);
+      await writeAgentTransaction(wallet, {
+        address: AGENT_VAULT, abi: agentVaultAbi, functionName: 'rebalance', args: [owner],
+      }, 'rebalance');
+      success = 'rebalance confirmed.';
+    } else {
+      throw new Error('unknown agent action');
+    }
+
+    agentCache.delete(owner.toLowerCase());
+    await hydratePlotAgent(id, true);
+    if (action === 'deposit' || action === 'withdraw') await refreshWalletStocks().catch(() => {});
+    txState(success, selEl);
+  } catch (err) {
+    if (btn) btn.disabled = false;
+    const m = (err?.shortMessage || err?.message || 'failed').split('\n')[0];
+    txState(/rejected|denied/i.test(m) ? 'cancelled.' : m.toLowerCase().slice(0, 240), selEl);
   }
 }
 
