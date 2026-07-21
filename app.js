@@ -53,7 +53,9 @@ const DISTRICT_CENTROIDS = [[15.5, 15.5], [7.5, 7.5], [23.5, 7.5], [7.5, 23.5], 
 
 // deep link: ?plot=240 selects that plot and flies the camera to it on load
 const DEEP_PLOT = (() => {
-  const n = Number(new URLSearchParams(location.search).get('plot'));
+  const p = new URLSearchParams(location.search).get('plot');
+  if (p === null || p === '') return -1; // Number(null) is 0 — a valid plot id
+  const n = Number(p);
   return Number.isInteger(n) && n >= 0 && n < PLOTS ? n : -1;
 })();
 
@@ -1049,12 +1051,13 @@ function coords(id) {
   return '(' + (id % SIDE) + ', ' + ((id / SIDE) | 0) + ')';
 }
 
-// keep ?plot= in the address bar in sync so the URL is always shareable
-function syncPlotUrl() {
+// shareable URL for the selected plot — built on demand by the copy-link
+// button. The address bar is left alone: rewriting it made every reload a
+// deep link into the last-clicked plot.
+function plotUrl(id) {
   const u = new URL(location.href);
-  if (selected >= 0) u.searchParams.set('plot', selected);
-  else u.searchParams.delete('plot');
-  history.replaceState(null, '', u);
+  u.searchParams.set('plot', id);
+  return u.toString();
 }
 
 function renderSel() {
@@ -1340,7 +1343,8 @@ selEl.addEventListener('click', e => {
   const copy = e.target.closest('#copylink');
   if (copy) {
     e.preventDefault();
-    navigator.clipboard?.writeText(location.href)
+    if (selected < 0) return;
+    navigator.clipboard?.writeText(plotUrl(selected))
       .then(() => { copy.textContent = 'link copied'; })
       .catch(() => {});
     return;
@@ -1492,7 +1496,6 @@ holdingsEl.addEventListener('click', e => {
   if (link) {
     selected = Number(link.dataset.id);
     selPopAt = performance.now();
-    syncPlotUrl();
     renderSel();
     schedule();
     return;
@@ -1574,7 +1577,6 @@ marketEl.addEventListener('click', e => {
   if (link) {
     selected = Number(link.dataset.id);
     selPopAt = performance.now();
-    syncPlotUrl();
     renderSel();
     schedule();
   }
@@ -1793,7 +1795,6 @@ canvas.addEventListener('click', e => {
   if (!loaded) return;
   selected = pick(e);
   selPopAt = performance.now();
-  syncPlotUrl();
   renderSel();
   schedule();
 });
