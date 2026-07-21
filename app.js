@@ -162,6 +162,31 @@ const fine = matchMedia('(pointer: fine)').matches;
 
 const view = { w: 0, h: 0, tw: 30, th: 15, ox: 0, oy: 0 };
 
+// camera: quarter-turn rotation so towers never permanently hide the plots
+// behind them, plus drag pan and wheel zoom
+let rot = 0; // 0..3 quarter turns
+let zoom = 1;
+let panX = 0, panY = 0;
+const viewToId = new Int16Array(PLOTS);
+
+// grid point -> view point under the current rotation (continuous coords)
+function tfPt(px, py) {
+  if (rot === 1) return [SIDE - py, px];
+  if (rot === 2) return [SIDE - px, SIDE - py];
+  if (rot === 3) return [py, SIDE - px];
+  return [px, py];
+}
+
+function buildViewIndex() {
+  for (let y = 0; y < SIDE; y++) {
+    for (let x = 0; x < SIDE; x++) {
+      const [cx, cy] = tfPt(x + 0.5, y + 0.5);
+      viewToId[(cy - 0.5) * SIDE + (cx - 0.5)] = y * SIDE + x;
+    }
+  }
+}
+buildViewIndex();
+
 let basePrices = null; // bigint[] in configured payment-token wei
 let apys = null;
 let tokIdx = null;
@@ -285,11 +310,11 @@ function fit() {
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const tw = Math.min((w * 0.96) / SIDE, (2 * (h * 0.82)) / SIDE);
+  const tw = Math.min((w * 0.96) / SIDE, (2 * (h * 0.82)) / SIDE) * zoom;
   view.tw = tw;
   view.th = tw / 2;
-  view.ox = w / 2;
-  view.oy = (h - SIDE * view.th) / 2 + view.th * 1.5;
+  view.ox = w / 2 + panX;
+  view.oy = (h - SIDE * view.th) / 2 + view.th * 1.5 + panY;
 }
 
 function zOf(id) {
@@ -317,9 +342,10 @@ function render() {
   ctx.fillStyle = BG;
   ctx.fillRect(0, 0, view.w, view.h);
   for (let s = 0; s <= 2 * SIDE - 2; s++) {
-    for (let x = Math.max(0, s - SIDE + 1); x <= Math.min(SIDE - 1, s); x++) {
-      const y = s - x;
-      const id = y * SIDE + x;
+    for (let vx = Math.max(0, s - SIDE + 1); vx <= Math.min(SIDE - 1, s); vx++) {
+      const vy = s - vx;
+      const id = viewToId[vy * SIDE + vx];
+      const x = id % SIDE, y = (id / SIDE) | 0;
       const demo = DEMO_SKYLINE ? demoById.get(id) : null;
       let z = demo ? demo.h : zOf(id);
       let top;
@@ -331,7 +357,7 @@ function render() {
       if (id === selected) z += 0.35;
       if (id === hoverId && id !== selected) top = HOVER_TOP;
       const inset = owned[id] ? styleInset(id) : IN;
-      prism(ctx, view, x + inset, y + inset, x + 1 - inset, y + 1 - inset, z, top);
+      prism(ctx, view, vx + inset, vy + inset, vx + 1 - inset, vy + 1 - inset, z, top);
     }
   }
   if (DISTRICTS_ON) drawDistrictLabels();
@@ -347,9 +373,10 @@ function drawBuildingLabels() {
     const c = builds[id];
     if (!c || !c.name) continue;
     const x = id % SIDE, y = (id / SIDE) | 0;
-    const sx = view.ox + (x + 0.5 - (y + 0.5)) * (view.tw / 2);
-    const sy = view.oy + (x + 0.5 + y + 0.5) * (view.th / 2) - (zOf(id) + 0.5) * view.th;
-    labels.push({ name: c.name, sx, sy, order: x + y });
+    const [vx, vy] = tfPt(x + 0.5, y + 0.5);
+    const sx = view.ox + (vx - vy) * (view.tw / 2);
+    const sy = view.oy + (vx + vy) * (view.th / 2) - (zOf(id) + 0.5) * view.th;
+    labels.push({ name: c.name, sx, sy, order: vx + vy });
   }
   if (!labels.length) return;
   ctx.save();
@@ -386,8 +413,9 @@ function drawSkylineLabels() {
   ctx.textBaseline = 'middle';
   ctx.font = "600 " + Math.max(9, view.tw * 0.5) + "px 'Archivo', sans-serif";
   for (const p of DEMO_PLOTS) {
-    const sx = view.ox + (p.x + 0.5 - (p.y + 0.5)) * (view.tw / 2);
-    const sy = view.oy + (p.x + 0.5 + p.y + 0.5) * (view.th / 2) - (p.h + 0.7) * view.th;
+    const [vx, vy] = tfPt(p.x + 0.5, p.y + 0.5);
+    const sx = view.ox + (vx - vy) * (view.tw / 2);
+    const sy = view.oy + (vx + vy) * (view.th / 2) - (p.h + 0.7) * view.th;
     ctx.fillStyle = 'rgba(12,35,64,0.9)';
     ctx.fillText(p.name, sx + 1, sy + 1);
     ctx.fillStyle = '#e9f2fb';
@@ -402,9 +430,9 @@ function drawDistrictLabels() {
   ctx.textBaseline = 'middle';
   ctx.font = "600 " + Math.max(11, view.tw * 0.62) + "px 'Instrument Serif', serif";
   for (let i = 0; i < DISTRICTS.length; i++) {
-    const [cx, cy] = DISTRICT_CENTROIDS[i];
-    const sx = view.ox + (cx - cy) * (view.tw / 2);
-    const sy = view.oy + (cx + cy) * (view.th / 2) - 1.6 * view.th;
+    const [vx, vy] = tfPt(...DISTRICT_CENTROIDS[i]);
+    const sx = view.ox + (vx - vy) * (view.tw / 2);
+    const sy = view.oy + (vx + vy) * (view.th / 2) - 1.6 * view.th;
     ctx.fillStyle = 'rgba(12,35,64,0.85)';
     ctx.fillText(DISTRICTS[i].name, sx + 1, sy + 1);
     ctx.fillStyle = '#ffffff';
@@ -1428,18 +1456,79 @@ function pick(e) {
   let best = -1, bestScore = -1;
   for (let dy = -1; dy <= 4; dy++) {
     for (let dx = -1; dx <= 4; dx++) {
-      const x = bx + dx, y = by + dy;
-      if (x < 0 || x >= SIDE || y < 0 || y >= SIDE) continue;
-      const id = y * SIDE + x;
-      if (!inTopFace(mx, my, x, y, zOf(id))) continue;
-      const score = (x + y) * 10 + zOf(id); // frontmost (drawn last, on top) wins
+      const vx = bx + dx, vy = by + dy;
+      if (vx < 0 || vx >= SIDE || vy < 0 || vy >= SIDE) continue;
+      const id = viewToId[vy * SIDE + vx];
+      if (!inTopFace(mx, my, vx, vy, zOf(id))) continue;
+      const score = (vx + vy) * 10 + zOf(id); // frontmost (drawn last, on top) wins
       if (score > bestScore) { bestScore = score; best = id; }
     }
   }
   return best;
 }
 
+// ---- camera controls ----
+
+const resetBtn = document.getElementById('view-reset');
+
+function viewMoved() {
+  return rot !== 0 || zoom !== 1 || panX !== 0 || panY !== 0;
+}
+
+function updateResetBtn() {
+  resetBtn.hidden = !viewMoved();
+}
+
+function rotateView(dir) {
+  rot = (rot + dir + 4) % 4;
+  buildViewIndex();
+  updateResetBtn();
+  schedule();
+}
+
+document.getElementById('rot-l').addEventListener('click', () => rotateView(-1));
+document.getElementById('rot-r').addEventListener('click', () => rotateView(1));
+resetBtn.addEventListener('click', () => {
+  rot = 0; zoom = 1; panX = 0; panY = 0;
+  buildViewIndex();
+  fit();
+  updateResetBtn();
+  schedule();
+});
+
+// wheel zoom about the cursor, so the plot under it stays put
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const a = (mx - view.ox) / (view.tw / 2);
+  const b = (my - view.oy) / (view.th / 2);
+  zoom = Math.min(3, Math.max(0.6, zoom * Math.exp(-e.deltaY * 0.0012)));
+  fit();
+  panX += mx - (view.ox + a * (view.tw / 2));
+  panY += my - (view.oy + b * (view.th / 2));
+  fit();
+  updateResetBtn();
+  schedule();
+}, { passive: false });
+
+// drag pans on fine pointers; touch keeps native page scroll and uses buttons
+let drag = null; // {x, y, moved}
+let suppressClick = false;
+if (fine) {
+  canvas.addEventListener('pointerdown', e => {
+    drag = { x: e.clientX, y: e.clientY, moved: false };
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointerup', () => {
+    suppressClick = drag?.moved || false;
+    drag = null;
+  });
+  canvas.addEventListener('pointercancel', () => { drag = null; });
+}
+
 canvas.addEventListener('click', e => {
+  if (suppressClick) { suppressClick = false; return; }
   if (!loaded) return;
   selected = pick(e);
   renderSel();
@@ -1448,6 +1537,20 @@ canvas.addEventListener('click', e => {
 
 if (fine) {
   canvas.addEventListener('pointermove', e => {
+    if (drag) {
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+      if (drag.moved || Math.abs(dx) + Math.abs(dy) > 4) {
+        drag.moved = true;
+        panX += dx; panY += dy;
+        drag.x = e.clientX; drag.y = e.clientY;
+        hoverId = -1;
+        tip.hide();
+        fit();
+        updateResetBtn();
+        schedule();
+      }
+      return;
+    }
     if (!loaded) return;
     const id = pick(e);
     hoverId = id;

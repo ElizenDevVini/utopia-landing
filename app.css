@@ -52,6 +52,27 @@
 
 .map-pane .map-status { margin-top: 0.6rem; }
 
+.map-controls {
+  position: absolute;
+  top: 2.2rem;
+  right: 2.2rem;
+  display: flex;
+  gap: 0.4rem;
+}
+
+.map-controls button {
+  font: inherit;
+  font-size: 0.74rem;
+  color: #c8dcf1;
+  background: rgba(12, 35, 64, 0.7);
+  border: 1px solid rgba(200, 220, 241, 0.35);
+  border-radius: 3px;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+}
+
+.map-controls button:hover { color: #ffffff; border-color: rgba(255, 255, 255, 0.6); }
+
 .legend {
   color: var(--muted);
   font-size: 0.78rem;
