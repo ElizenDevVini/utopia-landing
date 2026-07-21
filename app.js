@@ -5,7 +5,7 @@ import {
   createPublicClient, createWalletClient, custom,
   defineChain, parseAbi, keccak256, encodePacked,
 } from './vendor/viem.js?v=15';
-import { BG, TOPS, HOVER_TOP, CLAIMED_TOP, IN, hash, prism, makeTip } from './iso.js?v=15';
+import { BG, TOPS, HOVER_TOP, CLAIMED_TOP, IN, Z0, hash, makeTip } from './iso.js?v=15';
 import { addressUrl, MULTICALL3, NET, resilientReadTransport, withNetwork } from './config.js?v=15';
 
 const LAND = NET.land;
@@ -160,32 +160,67 @@ const walletLink = document.getElementById('wallet');
 const tip = makeTip(document.getElementById('tip'));
 const fine = matchMedia('(pointer: fine)').matches;
 
-const view = { w: 0, h: 0, tw: 30, th: 15, ox: 0, oy: 0 };
+const view = { w: 0, h: 0, s: 24, hz: 17, baseS: 24, ox: 0, oy: 0 };
 
-// camera: quarter-turn rotation so towers never permanently hide the plots
-// behind them, plus drag pan and wheel zoom
-let rot = 0; // 0..3 quarter turns
+// free-orbit camera: drag spins and tilts the city, wheel zooms at the
+// cursor, double-click flies to a plot. The default matches the old fixed
+// isometric framing (yaw 45°, 2:1 foreshortening).
+const YAW0 = Math.PI / 4, PITCH0 = 0.5;
+let yaw = YAW0;
+let pitch = PITCH0; // ground foreshortening: low = street level, high = overhead
 let zoom = 1;
 let panX = 0, panY = 0;
-const viewToId = new Int16Array(PLOTS);
 
-// grid point -> view point under the current rotation (continuous coords)
-function tfPt(px, py) {
-  if (rot === 1) return [SIDE - py, px];
-  if (rot === 2) return [SIDE - px, SIDE - py];
-  if (rot === 3) return [py, SIDE - px];
-  return [px, py];
+let cosYaw = 1, sinYaw = 0, trigYaw = null;
+const wallVisible = [false, false, false, false];
+const wallColors = ['', '', '', ''];
+const depth = new Float32Array(PLOTS);
+const drawOrder = Array.from({ length: PLOTS }, (_, i) => i);
+
+// wall outward normals, in the order of top corners
+// c0=(x0,y0) c1=(x1,y0) c2=(x1,y1) c3=(x0,y1)
+const WALL_N = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+// shade endpoints chosen so the default angle reproduces the old two-tone
+// walls (#33608f / #4d84c3)
+const SHADE_DARK = [6, 34, 53], SHADE_LITE = [78, 134, 197];
+
+function shade(t) {
+  const k = Math.max(0, Math.min(1, t));
+  return 'rgb(' + SHADE_DARK.map((d, i) => Math.round(d + (SHADE_LITE[i] - d) * k)).join(',') + ')';
 }
 
-function buildViewIndex() {
-  for (let y = 0; y < SIDE; y++) {
-    for (let x = 0; x < SIDE; x++) {
-      const [cx, cy] = tfPt(x + 0.5, y + 0.5);
-      viewToId[(cy - 0.5) * SIDE + (cx - 0.5)] = y * SIDE + x;
-    }
+function updateCamera() {
+  if (trigYaw === yaw) return;
+  trigYaw = yaw;
+  cosYaw = Math.cos(yaw);
+  sinYaw = Math.sin(yaw);
+  // the light rides ~30° off the camera so at every orbit angle the two
+  // visible walls split into a lit side and a shaded side
+  const lx = Math.sin(yaw - 0.53), ly = Math.cos(yaw - 0.53);
+  for (let i = 0; i < 4; i++) {
+    const [nx, ny] = WALL_N[i];
+    wallVisible[i] = nx * sinYaw + ny * cosYaw > 0.02;
+    wallColors[i] = shade((nx * lx + ny * ly + 1) / 2);
   }
+  for (let id = 0; id < PLOTS; id++) {
+    depth[id] = ((id % SIDE) + 0.5 - 16) * sinYaw + (((id / SIDE) | 0) + 0.5 - 16) * cosYaw;
+  }
+  drawOrder.sort((a, b) => depth[a] - depth[b]); // far to near
 }
-buildViewIndex();
+
+function proj(x, y, z) {
+  const dx = x - 16, dy = y - 16;
+  const rx = dx * cosYaw - dy * sinYaw;
+  const ry = dx * sinYaw + dy * cosYaw;
+  return [view.ox + rx * view.s, view.oy + ry * view.s * pitch - z * view.hz];
+}
+
+// world ground-plane offset (from grid center) under a screen point
+function groundAt(sx, sy) {
+  const rx = (sx - view.ox) / view.s;
+  const ry = (sy - view.oy) / (view.s * pitch);
+  return [rx * cosYaw + ry * sinYaw, -rx * sinYaw + ry * cosYaw];
+}
 
 let basePrices = null; // bigint[] in configured payment-token wei
 let apys = null;
@@ -310,11 +345,12 @@ function fit() {
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const tw = Math.min((w * 0.96) / SIDE, (2 * (h * 0.82)) / SIDE) * zoom;
-  view.tw = tw;
-  view.th = tw / 2;
+  // fit the ground diamond at its widest (diagonal) orientation
+  view.baseS = Math.min((w * 0.96) / (SIDE * 1.42), (h * 0.82) / (SIDE * 1.42 * PITCH0));
+  view.s = view.baseS * zoom;
+  view.hz = view.s * 0.82 * Math.sqrt(1 - pitch * pitch);
   view.ox = w / 2 + panX;
-  view.oy = (h - SIDE * view.th) / 2 + view.th * 1.5 + panY;
+  view.oy = h * 0.52 + panY;
 }
 
 function zOf(id) {
@@ -338,27 +374,44 @@ function styleInset(id) {
   return IN; // tower / low-rise
 }
 
+function drawBox(x0, y0, x1, y1, z, top) {
+  const p0 = proj(x0, y0, z), p1 = proj(x1, y0, z), p2 = proj(x1, y1, z), p3 = proj(x0, y1, z);
+  const p = [p0, p1, p2, p3];
+  const drop = (z - Z0) * view.hz;
+  for (let i = 0; i < 4; i++) {
+    if (!wallVisible[i]) continue;
+    const a = p[i], b = p[(i + 1) % 4];
+    ctx.fillStyle = wallColors[i];
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+    ctx.lineTo(b[0], b[1] + drop); ctx.lineTo(a[0], a[1] + drop);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = top;
+  ctx.beginPath();
+  ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.lineTo(p3[0], p3[1]);
+  ctx.closePath();
+  ctx.fill();
+}
+
 function render() {
+  updateCamera();
   ctx.fillStyle = BG;
   ctx.fillRect(0, 0, view.w, view.h);
-  for (let s = 0; s <= 2 * SIDE - 2; s++) {
-    for (let vx = Math.max(0, s - SIDE + 1); vx <= Math.min(SIDE - 1, s); vx++) {
-      const vy = s - vx;
-      const id = viewToId[vy * SIDE + vx];
-      const x = id % SIDE, y = (id / SIDE) | 0;
-      const demo = DEMO_SKYLINE ? demoById.get(id) : null;
-      let z = demo ? demo.h : zOf(id);
-      let top;
-      if (demo) top = MINE_TOP;
-      else if (owned[id] && builds[id]) top = builds[id].color; // owner-painted
-      else if (owned[id]) top = mine[id] ? MINE_TOP : CLAIMED_TOP;
-      else if (DISTRICTS_ON) top = DISTRICTS[districtOf(x, y)].color;
-      else top = tiers ? TIER_TOPS[tiers[id]] : TOPS[(hash(x, y) * 997) % 3 | 0];
-      if (id === selected) z += 0.35;
-      if (id === hoverId && id !== selected) top = HOVER_TOP;
-      const inset = owned[id] ? styleInset(id) : IN;
-      prism(ctx, view, vx + inset, vy + inset, vx + 1 - inset, vy + 1 - inset, z, top);
-    }
+  for (const id of drawOrder) {
+    const x = id % SIDE, y = (id / SIDE) | 0;
+    const demo = DEMO_SKYLINE ? demoById.get(id) : null;
+    let z = demo ? demo.h : zOf(id);
+    let top;
+    if (demo) top = MINE_TOP;
+    else if (owned[id] && builds[id]) top = builds[id].color; // owner-painted
+    else if (owned[id]) top = mine[id] ? MINE_TOP : CLAIMED_TOP;
+    else if (DISTRICTS_ON) top = DISTRICTS[districtOf(x, y)].color;
+    else top = tiers ? TIER_TOPS[tiers[id]] : TOPS[(hash(x, y) * 997) % 3 | 0];
+    if (id === selected) z += 0.35;
+    if (id === hoverId && id !== selected) top = HOVER_TOP;
+    const inset = owned[id] ? styleInset(id) : IN;
+    drawBox(x + inset, y + inset, x + 1 - inset, y + 1 - inset, z, top);
   }
   if (DISTRICTS_ON) drawDistrictLabels();
   drawBuildingLabels();
@@ -373,16 +426,14 @@ function drawBuildingLabels() {
     const c = builds[id];
     if (!c || !c.name) continue;
     const x = id % SIDE, y = (id / SIDE) | 0;
-    const [vx, vy] = tfPt(x + 0.5, y + 0.5);
-    const sx = view.ox + (vx - vy) * (view.tw / 2);
-    const sy = view.oy + (vx + vy) * (view.th / 2) - (zOf(id) + 0.5) * view.th;
-    labels.push({ name: c.name, sx, sy, order: vx + vy });
+    const [sx, sy] = proj(x + 0.5, y + 0.5, zOf(id) + 0.5);
+    labels.push({ name: c.name, sx, sy, order: depth[id] });
   }
   if (!labels.length) return;
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const fs = Math.max(10, view.tw * 0.5);
+  const fs = Math.max(10, view.s * 0.7);
   ctx.font = '600 ' + fs + "px 'Archivo', sans-serif";
   ctx.lineJoin = 'round';
   ctx.lineWidth = Math.max(2, fs * 0.22);
@@ -411,11 +462,9 @@ function drawSkylineLabels() {
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = "600 " + Math.max(9, view.tw * 0.5) + "px 'Archivo', sans-serif";
+  ctx.font = "600 " + Math.max(9, view.s * 0.7) + "px 'Archivo', sans-serif";
   for (const p of DEMO_PLOTS) {
-    const [vx, vy] = tfPt(p.x + 0.5, p.y + 0.5);
-    const sx = view.ox + (vx - vy) * (view.tw / 2);
-    const sy = view.oy + (vx + vy) * (view.th / 2) - (p.h + 0.7) * view.th;
+    const [sx, sy] = proj(p.x + 0.5, p.y + 0.5, p.h + 0.7);
     ctx.fillStyle = 'rgba(12,35,64,0.9)';
     ctx.fillText(p.name, sx + 1, sy + 1);
     ctx.fillStyle = '#e9f2fb';
@@ -428,11 +477,9 @@ function drawDistrictLabels() {
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = "600 " + Math.max(11, view.tw * 0.62) + "px 'Instrument Serif', serif";
+  ctx.font = "600 " + Math.max(11, view.s * 0.88) + "px 'Instrument Serif', serif";
   for (let i = 0; i < DISTRICTS.length; i++) {
-    const [vx, vy] = tfPt(...DISTRICT_CENTROIDS[i]);
-    const sx = view.ox + (vx - vy) * (view.tw / 2);
-    const sy = view.oy + (vx + vy) * (view.th / 2) - 1.6 * view.th;
+    const [sx, sy] = proj(DISTRICT_CENTROIDS[i][0], DISTRICT_CENTROIDS[i][1], 1.6);
     ctx.fillStyle = 'rgba(12,35,64,0.85)';
     ctx.fillText(DISTRICTS[i].name, sx + 1, sy + 1);
     ctx.fillStyle = '#ffffff';
@@ -1438,86 +1485,147 @@ marketEl.addEventListener('click', e => {
 
 // ---- map interactions ----
 
-// is (mx,my) inside the drawn top face of tile (x,y) at height z
-function inTopFace(mx, my, x, y, z) {
-  const cx = view.ox + (x - y) * (view.tw / 2);
-  const cy = view.oy + (x + y + 1) * (view.th / 2) - z * view.th;
-  return Math.abs(mx - cx) / (view.tw / 2) + Math.abs(my - cy) / (view.th / 2) <= 1;
-}
-
-function pick(e) {
-  const rect = canvas.getBoundingClientRect();
-  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-  // ground-plane guess, then search nearby for the frontmost raised block
-  // whose top face actually sits under the cursor
-  const a = (mx - view.ox) / (view.tw / 2);
-  const b = (my - view.oy) / (view.th / 2);
-  const bx = Math.floor((a + b) / 2), by = Math.floor((b - a) / 2);
-  let best = -1, bestScore = -1;
-  for (let dy = -1; dy <= 4; dy++) {
-    for (let dx = -1; dx <= 4; dx++) {
-      const vx = bx + dx, vy = by + dy;
-      if (vx < 0 || vx >= SIDE || vy < 0 || vy >= SIDE) continue;
-      const id = viewToId[vy * SIDE + vx];
-      if (!inTopFace(mx, my, vx, vy, zOf(id))) continue;
-      const score = (vx + vy) * 10 + zOf(id); // frontmost (drawn last, on top) wins
-      if (score > bestScore) { bestScore = score; best = id; }
+function quadContains(mx, my, q) {
+  let sgn = 0;
+  for (let i = 0; i < 4; i++) {
+    const a = q[i], b = q[(i + 1) % 4];
+    const cr = (b[0] - a[0]) * (my - a[1]) - (b[1] - a[1]) * (mx - a[0]);
+    if (cr !== 0) {
+      const s = cr > 0 ? 1 : -1;
+      if (sgn === 0) sgn = s;
+      else if (s !== sgn) return false;
     }
   }
-  return best;
+  return true;
+}
+
+// walk boxes front to back; the first whose top face or visible wall
+// contains the cursor is the one the user sees under it
+function pick(e) {
+  updateCamera();
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  for (let k = PLOTS - 1; k >= 0; k--) {
+    const id = drawOrder[k];
+    const x = id % SIDE, y = (id / SIDE) | 0;
+    const z = zOf(id) + (id === selected ? 0.35 : 0);
+    const inset = owned[id] ? styleInset(id) : IN;
+    const p = [
+      proj(x + inset, y + inset, z), proj(x + 1 - inset, y + inset, z),
+      proj(x + 1 - inset, y + 1 - inset, z), proj(x + inset, y + 1 - inset, z),
+    ];
+    if (quadContains(mx, my, p)) return id;
+    const drop = (z - Z0) * view.hz;
+    for (let i = 0; i < 4; i++) {
+      if (!wallVisible[i]) continue;
+      const a = p[i], b = p[(i + 1) % 4];
+      if (quadContains(mx, my, [a, b, [b[0], b[1] + drop], [a[0], a[1] + drop]])) return id;
+    }
+  }
+  return -1;
 }
 
 // ---- camera controls ----
 
 const resetBtn = document.getElementById('view-reset');
+const TAU = 2 * Math.PI;
 
 function viewMoved() {
-  return rot !== 0 || zoom !== 1 || panX !== 0 || panY !== 0;
+  const ny = ((yaw % TAU) + TAU) % TAU;
+  return Math.abs(ny - YAW0) > 0.001 || Math.abs(pitch - PITCH0) > 0.001
+    || Math.abs(zoom - 1) > 0.001 || Math.abs(panX) > 0.5 || Math.abs(panY) > 0.5;
 }
 
 function updateResetBtn() {
   resetBtn.hidden = !viewMoved();
 }
 
-function rotateView(dir) {
-  rot = (rot + dir + 4) % 4;
-  buildViewIndex();
-  updateResetBtn();
-  schedule();
+let animRaf = 0;
+function flyTo(target, ms = 500) {
+  cancelAnimationFrame(animRaf);
+  const from = { yaw, pitch, zoom, panX, panY };
+  const to = { ...from, ...target };
+  const t0 = performance.now();
+  const step = now => {
+    const k = Math.min(1, (now - t0) / ms);
+    const e = k < 0.5 ? 4 * k * k * k : 1 - (-2 * k + 2) ** 3 / 2;
+    yaw = from.yaw + (to.yaw - from.yaw) * e;
+    pitch = from.pitch + (to.pitch - from.pitch) * e;
+    zoom = from.zoom + (to.zoom - from.zoom) * e;
+    panX = from.panX + (to.panX - from.panX) * e;
+    panY = from.panY + (to.panY - from.panY) * e;
+    fit();
+    updateResetBtn();
+    schedule();
+    if (k < 1) animRaf = requestAnimationFrame(step);
+  };
+  animRaf = requestAnimationFrame(step);
 }
 
-document.getElementById('rot-l').addEventListener('click', () => rotateView(-1));
-document.getElementById('rot-r').addEventListener('click', () => rotateView(1));
+// quarter turns pivot around whatever ground point is centered on screen
+function quarterTurn(dir) {
+  updateCamera();
+  const [wx, wy] = groundAt(view.w / 2, view.h / 2);
+  const ny = yaw + dir * Math.PI / 2;
+  const c = Math.cos(ny), s = Math.sin(ny);
+  const rx = wx * c - wy * s, ry = wx * s + wy * c;
+  flyTo({
+    yaw: ny,
+    panX: -rx * view.s,
+    panY: view.h * -0.02 - ry * view.s * pitch,
+  });
+}
+document.getElementById('rot-l').addEventListener('click', () => quarterTurn(-1));
+document.getElementById('rot-r').addEventListener('click', () => quarterTurn(1));
 resetBtn.addEventListener('click', () => {
-  rot = 0; zoom = 1; panX = 0; panY = 0;
-  buildViewIndex();
-  fit();
-  updateResetBtn();
-  schedule();
+  // unwind to the nearest equivalent of the home angle, not the long way round
+  const home = YAW0 + TAU * Math.round((yaw - YAW0) / TAU);
+  flyTo({ yaw: home, pitch: PITCH0, zoom: 1, panX: 0, panY: 0 });
 });
 
-// wheel zoom about the cursor, so the plot under it stays put
+// double-click a plot: fly the camera down to it
+canvas.addEventListener('dblclick', e => {
+  if (!loaded) return;
+  const id = pick(e);
+  if (id < 0) return;
+  const gx = (id % SIDE) + 0.5 - 16, gy = ((id / SIDE) | 0) + 0.5 - 16;
+  const rx = gx * cosYaw - gy * sinYaw;
+  const ry = gx * sinYaw + gy * cosYaw;
+  const z = Math.min(6, Math.max(zoom * 1.9, 2.8));
+  const s = view.baseS * z;
+  const hz = s * 0.82 * Math.sqrt(1 - pitch * pitch);
+  flyTo({
+    zoom: z,
+    panX: -rx * s,
+    panY: view.h * -0.02 - ry * s * pitch + zOf(id) * 0.6 * hz,
+  }, 600);
+});
+
+// wheel zoom about the cursor, so the ground point under it stays put
 canvas.addEventListener('wheel', e => {
   e.preventDefault();
+  cancelAnimationFrame(animRaf);
   const rect = canvas.getBoundingClientRect();
   const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-  const a = (mx - view.ox) / (view.tw / 2);
-  const b = (my - view.oy) / (view.th / 2);
-  zoom = Math.min(3, Math.max(0.6, zoom * Math.exp(-e.deltaY * 0.0012)));
+  const a = (mx - view.ox) / view.s;
+  const b = (my - view.oy) / (view.s * pitch);
+  zoom = Math.min(6, Math.max(0.6, zoom * Math.exp(-e.deltaY * 0.0012)));
   fit();
-  panX += mx - (view.ox + a * (view.tw / 2));
-  panY += my - (view.oy + b * (view.th / 2));
+  panX += mx - (view.ox + a * view.s);
+  panY += my - (view.oy + b * view.s * pitch);
   fit();
   updateResetBtn();
   schedule();
 }, { passive: false });
 
-// drag pans on fine pointers; touch keeps native page scroll and uses buttons
-let drag = null; // {x, y, moved}
+// drag orbits (shift-drag pans) on fine pointers; touch keeps native page
+// scroll and uses the turn buttons
+let drag = null; // {x, y, moved, pan}
 let suppressClick = false;
 if (fine) {
   canvas.addEventListener('pointerdown', e => {
-    drag = { x: e.clientX, y: e.clientY, moved: false };
+    cancelAnimationFrame(animRaf);
+    drag = { x: e.clientX, y: e.clientY, moved: false, pan: e.shiftKey };
     canvas.setPointerCapture(e.pointerId);
   });
   canvas.addEventListener('pointerup', () => {
@@ -1541,7 +1649,21 @@ if (fine) {
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       if (drag.moved || Math.abs(dx) + Math.abs(dy) > 4) {
         drag.moved = true;
-        panX += dx; panY += dy;
+        if (drag.pan) {
+          panX += dx;
+          panY += dy;
+        } else {
+          // orbit about the ground point at the screen center, not the grid
+          // center, so a zoomed-in view stays on what it was looking at
+          const [wx, wy] = groundAt(view.w / 2, view.h / 2);
+          yaw += dx * 0.007;
+          pitch = Math.min(0.92, Math.max(0.28, pitch + dy * 0.004));
+          updateCamera();
+          fit();
+          const rx = wx * cosYaw - wy * sinYaw, ry = wx * sinYaw + wy * cosYaw;
+          panX += view.w / 2 - (view.ox + rx * view.s);
+          panY += view.h / 2 - (view.oy + ry * view.s * pitch);
+        }
         drag.x = e.clientX; drag.y = e.clientY;
         hoverId = -1;
         tip.hide();
