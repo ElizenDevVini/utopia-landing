@@ -51,6 +51,12 @@ const DISTRICTS = [
 ];
 const DISTRICT_CENTROIDS = [[15.5, 15.5], [7.5, 7.5], [23.5, 7.5], [7.5, 23.5], [23.5, 23.5]];
 
+// deep link: ?plot=240 selects that plot and flies the camera to it on load
+const DEEP_PLOT = (() => {
+  const n = Number(new URLSearchParams(location.search).get('plot'));
+  return Number.isInteger(n) && n >= 0 && n < PLOTS ? n : -1;
+})();
+
 // preview skyline: named demo skyscrapers, shown only with ?demo in the URL so
 // the live site never displays fake sold plots. real sold plots become towers.
 const DEMO_SKYLINE = new URLSearchParams(location.search).has('demo');
@@ -772,6 +778,10 @@ async function refreshOwnership() {
       const d = Math.hypot((i % SIDE) - 15.5, ((i / SIDE) | 0) - 15.5);
       riseAt[i] = riseNow + 150 + d * 28;
     }
+    // a deep-linked camera aimed before tower heights were known; re-aim now
+    if (DEEP_PLOT >= 0 && selected === DEEP_PLOT) {
+      flyTo(plotCamera(DEEP_PLOT, Math.max(zoom, 2.8), yaw, pitch), 700);
+    }
   } else {
     for (let i = 0; i < PLOTS; i++) if (owned[i] && !prevOwned[i]) riseAt[i] = riseNow;
   }
@@ -1039,7 +1049,25 @@ function coords(id) {
   return '(' + (id % SIDE) + ', ' + ((id / SIDE) | 0) + ')';
 }
 
+// keep ?plot= in the address bar in sync so the URL is always shareable
+function syncPlotUrl() {
+  const u = new URL(location.href);
+  if (selected >= 0) u.searchParams.set('plot', selected);
+  else u.searchParams.delete('plot');
+  history.replaceState(null, '', u);
+}
+
 function renderSel() {
+  renderSelBody();
+  if (selected >= 0 && loaded) {
+    const p = document.createElement('p');
+    p.className = 'quiet-note';
+    p.innerHTML = '<a href="#" id="copylink">copy link to this plot</a>';
+    selEl.append(p);
+  }
+}
+
+function renderSelBody() {
   if (selected < 0 || !loaded) {
     selEl.innerHTML = '<h3>plot</h3><p class="quiet-note">click a plot on the map, or pick one from the market below.</p>';
     return;
@@ -1309,6 +1337,14 @@ async function doTx(act, ids, trigger) {
 }
 
 selEl.addEventListener('click', e => {
+  const copy = e.target.closest('#copylink');
+  if (copy) {
+    e.preventDefault();
+    navigator.clipboard?.writeText(location.href)
+      .then(() => { copy.textContent = 'link copied'; })
+      .catch(() => {});
+    return;
+  }
   const req = e.target.closest('#reqaccess');
   if (req) { e.preventDefault(); requestAccess(req); return; }
   const swatch = e.target.closest('.swatch');
@@ -1456,6 +1492,7 @@ holdingsEl.addEventListener('click', e => {
   if (link) {
     selected = Number(link.dataset.id);
     selPopAt = performance.now();
+    syncPlotUrl();
     renderSel();
     schedule();
     return;
@@ -1537,6 +1574,7 @@ marketEl.addEventListener('click', e => {
   if (link) {
     selected = Number(link.dataset.id);
     selPopAt = performance.now();
+    syncPlotUrl();
     renderSel();
     schedule();
   }
@@ -1693,22 +1731,27 @@ resetBtn.addEventListener('click', () => {
   flyTo({ yaw: home, pitch: PITCH0, zoom: 1, panX: 0, panY: 0 });
 });
 
+// camera state that centers a plot at a given zoom, yaw, and pitch
+function plotCamera(id, zoomT, yawT, pitchT) {
+  const c = Math.cos(yawT), s = Math.sin(yawT);
+  const gx = (id % SIDE) + 0.5 - 16, gy = ((id / SIDE) | 0) + 0.5 - 16;
+  const rx = gx * c - gy * s, ry = gx * s + gy * c;
+  const sc = view.baseS * zoomT;
+  const hz = sc * 0.82 * Math.sqrt(1 - pitchT * pitchT);
+  return {
+    zoom: zoomT,
+    panX: -rx * sc,
+    panY: view.h * -0.02 - ry * sc * pitchT + zOf(id) * 0.6 * hz,
+  };
+}
+
 // double-click a plot: fly the camera down to it
 canvas.addEventListener('dblclick', e => {
   if (!loaded) return;
   const id = pick(e);
   if (id < 0) return;
-  const gx = (id % SIDE) + 0.5 - 16, gy = ((id / SIDE) | 0) + 0.5 - 16;
-  const rx = gx * cosYaw - gy * sinYaw;
-  const ry = gx * sinYaw + gy * cosYaw;
   const z = Math.min(6, Math.max(zoom * 1.9, 2.8));
-  const s = view.baseS * z;
-  const hz = s * 0.82 * Math.sqrt(1 - pitch * pitch);
-  flyTo({
-    zoom: z,
-    panX: -rx * s,
-    panY: view.h * -0.02 - ry * s * pitch + zOf(id) * 0.6 * hz,
-  }, 600);
+  flyTo(plotCamera(id, z, yaw, pitch), 600);
 });
 
 // wheel zoom about the cursor, so the ground point under it stays put
@@ -1750,6 +1793,7 @@ canvas.addEventListener('click', e => {
   if (!loaded) return;
   selected = pick(e);
   selPopAt = performance.now();
+  syncPlotUrl();
   renderSel();
   schedule();
 });
@@ -1836,16 +1880,23 @@ function configurePage() {
 }
 
 configurePage();
-// open on a pulled-back three-quarter angle and glide into the home framing
+// open on a pulled-back three-quarter angle, then glide into the home
+// framing — or straight down to a deep-linked plot
 yaw = YAW0 - 0.55;
 pitch = 0.62;
 zoom = 0.84;
 fit();
 render();
-flyTo({ yaw: YAW0, pitch: PITCH0, zoom: 1 }, 1400);
+if (DEEP_PLOT >= 0) {
+  selected = DEEP_PLOT;
+  flyTo({ yaw: YAW0, pitch: PITCH0, ...plotCamera(DEEP_PLOT, 2.8, YAW0, PITCH0) }, 1600);
+} else {
+  flyTo({ yaw: YAW0, pitch: PITCH0, zoom: 1 }, 1400);
+}
 noteInteract(); // arms the ambient-orbit idle timer
 if (NET.ready) {
   load();
+  if (DEEP_PLOT >= 0) renderSel();
   connect({ prompt: false }).catch(() => {});
 } else {
   statusEl.textContent = NET.label + ' is not active · ' + NET.activationIssue + '. the preview city remains available.';
