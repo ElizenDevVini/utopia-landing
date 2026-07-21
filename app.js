@@ -222,6 +222,29 @@ function groundAt(sx, sy) {
   return [rx * cosYaw + ry * sinYaw, -rx * sinYaw + ry * cosYaw];
 }
 
+// ---- tower + selection animation ----
+
+// timestamp each tower starts rising; -1 = fully risen
+const riseAt = new Float32Array(PLOTS).fill(-1);
+let ownershipPainted = false;
+let selPopAt = 0;
+const RISE_MS = 700;
+
+function towerScale(id, now) {
+  const t0 = riseAt[id];
+  if (t0 < 0) return 1;
+  const k = (now - t0) / RISE_MS;
+  if (k >= 1) { riseAt[id] = -1; return 1; }
+  if (k <= 0) return 0.001;
+  const u = k - 1;
+  return 1 + 1.9 * u * u * u + 0.9 * u * u; // ease out with a slight overshoot
+}
+
+function popEase(k) {
+  const u = k - 1;
+  return 1 + 2.7 * u * u * u + 1.7 * u * u;
+}
+
 let basePrices = null; // bigint[] in configured payment-token wei
 let apys = null;
 let tokIdx = null;
@@ -342,8 +365,13 @@ function fit() {
   const h = canvas.clientHeight;
   view.w = w; view.h = h;
   const dpr = Math.min(window.devicePixelRatio || 1, w < 700 ? 1.5 : 2);
-  canvas.width = Math.round(w * dpr);
-  canvas.height = Math.round(h * dpr);
+  const bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+  // assigning canvas.width clears the bitmap even at the same value — only
+  // touch it on a real resize, or every animation frame flashes blank
+  if (canvas.width !== bw || canvas.height !== bh) {
+    canvas.width = bw;
+    canvas.height = bh;
+  }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   // fit the ground diamond at its widest (diagonal) orientation
   view.baseS = Math.min((w * 0.96) / (SIDE * 1.42), (h * 0.82) / (SIDE * 1.42 * PITCH0));
@@ -396,19 +424,29 @@ function drawBox(x0, y0, x1, y1, z, top) {
 
 function render() {
   updateCamera();
+  const now = performance.now();
+  let animating = false;
   ctx.fillStyle = BG;
   ctx.fillRect(0, 0, view.w, view.h);
   for (const id of drawOrder) {
     const x = id % SIDE, y = (id / SIDE) | 0;
     const demo = DEMO_SKYLINE ? demoById.get(id) : null;
     let z = demo ? demo.h : zOf(id);
+    if (owned[id] && riseAt[id] >= 0) {
+      z = Math.max(0.08, z * towerScale(id, now));
+      animating = true;
+    }
     let top;
     if (demo) top = MINE_TOP;
     else if (owned[id] && builds[id]) top = builds[id].color; // owner-painted
     else if (owned[id]) top = mine[id] ? MINE_TOP : CLAIMED_TOP;
     else if (DISTRICTS_ON) top = DISTRICTS[districtOf(x, y)].color;
     else top = tiers ? TIER_TOPS[tiers[id]] : TOPS[(hash(x, y) * 997) % 3 | 0];
-    if (id === selected) z += 0.35;
+    if (id === selected) {
+      const k = Math.min(1, (now - selPopAt) / 300);
+      z += 0.35 * popEase(k);
+      if (k < 1) animating = true;
+    }
     if (id === hoverId && id !== selected) top = HOVER_TOP;
     const inset = owned[id] ? styleInset(id) : IN;
     drawBox(x + inset, y + inset, x + 1 - inset, y + 1 - inset, z, top);
@@ -416,25 +454,30 @@ function render() {
   if (DISTRICTS_ON) drawDistrictLabels();
   drawBuildingLabels();
   if (DEMO_SKYLINE) drawSkylineLabels();
+  if (animating) schedule();
 }
 
 // building names sit directly above their own rooftop. When two would
 // overlap, the nearer building keeps its name and the other is skipped —
 // never nudged somewhere it no longer points at anything.
 function drawBuildingLabels() {
+  const now = performance.now();
+  const fs = Math.max(10, Math.min(26, view.s * 0.7));
   const labels = [];
   for (let id = 0; id < PLOTS; id++) {
     const c = builds[id];
     if (!c || !c.name) continue;
     const x = id % SIDE, y = (id / SIDE) | 0;
-    const [sx, sy] = proj(x + 0.5, y + 0.5, zOf(id) + 0.6);
-    labels.push({ name: c.name, sx, sy, order: depth[id] });
+    const ts = riseAt[id] >= 0 ? Math.min(1, towerScale(id, now)) : 1;
+    // fixed screen offset above the rooftop, so the name hugs its building
+    // at every tilt instead of drifting up with world height
+    const [sx, sy] = proj(x + 0.5, y + 0.5, zOf(id) * ts);
+    labels.push({ name: c.name, sx, sy: sy - fs * 0.35, order: depth[id], alpha: ts });
   }
   if (!labels.length) return;
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
-  const fs = Math.max(10, Math.min(26, view.s * 0.7));
   ctx.font = '600 ' + fs + "px 'Archivo', sans-serif";
   ctx.lineJoin = 'round';
   ctx.lineWidth = Math.max(2, fs * 0.22);
@@ -447,6 +490,7 @@ function drawBuildingLabels() {
     const clash = placed.some(p => Math.abs(p.x - L.sx) < (p.w + w) / 2 + 4 && Math.abs(p.y - L.sy) < lineH);
     if (clash) continue;
     placed.push({ x: L.sx, y: L.sy, w });
+    ctx.globalAlpha = L.alpha;
     ctx.strokeStyle = 'rgba(8,24,44,0.92)';
     ctx.strokeText(L.name, L.sx, L.sy);
     ctx.fillStyle = '#f2f7fd';
@@ -689,6 +733,7 @@ function unpackBits(words, out) {
 
 async function refreshOwnership() {
   if (!NET.ready) return;
+  const prevOwned = ownershipPainted ? owned.slice() : null;
   const multiplierFunction = NET.landVersion === 2
     ? 'multiplierWad'
     : NET.landVersion === 3 ? 'marketMultiplierWad' : null;
@@ -716,6 +761,19 @@ async function refreshOwnership() {
     } catch {}
   }
   ownedCount = owned.reduce((a, b) => a + b, 0);
+  // first paint: the whole skyline rises outward from the center. later
+  // refreshes: only freshly bought plots rise.
+  const riseNow = performance.now();
+  if (!ownershipPainted) {
+    ownershipPainted = true;
+    for (let i = 0; i < PLOTS; i++) {
+      if (!owned[i]) continue;
+      const d = Math.hypot((i % SIDE) - 15.5, ((i / SIDE) | 0) - 15.5);
+      riseAt[i] = riseNow + 150 + d * 28;
+    }
+  } else {
+    for (let i = 0; i < PLOTS; i++) if (owned[i] && !prevOwned[i]) riseAt[i] = riseNow;
+  }
   if (account) {
     const [my, bal] = await Promise.all([
       pub.readContract({ address: LAND, abi, functionName: 'plotsOf', args: [account] }),
@@ -1213,6 +1271,7 @@ async function doTx(act, ids, trigger) {
       currentOwned[ids[0]] = 1;
       mine[ids[0]] = 1;
       currentMine[ids[0]] = 1;
+      riseAt[ids[0]] = performance.now(); // the new tower rises on the spot
       ownedCount = owned.reduce((a, b) => a + b, 0);
       currentOwnedCount = currentOwned.reduce((a, b) => a + b, 0);
     }
@@ -1395,6 +1454,7 @@ holdingsEl.addEventListener('click', e => {
   const link = e.target.closest('.plotlink');
   if (link) {
     selected = Number(link.dataset.id);
+    selPopAt = performance.now();
     renderSel();
     schedule();
     return;
@@ -1475,6 +1535,7 @@ marketEl.addEventListener('click', e => {
   const link = e.target.closest('.plotlink');
   if (link) {
     selected = Number(link.dataset.id);
+    selPopAt = performance.now();
     renderSel();
     schedule();
   }
@@ -1559,6 +1620,47 @@ function flyTo(target, ms = 500) {
   animRaf = requestAnimationFrame(step);
 }
 
+// orbit about the ground point at the screen center, not the grid center,
+// so a zoomed-in view stays on what it was looking at. The tilt floor stops
+// short of street level, where 1,024 towers collapse into a smear.
+function orbitBy(dyaw, dpitch) {
+  const [wx, wy] = groundAt(view.w / 2, view.h / 2);
+  yaw += dyaw;
+  pitch = Math.min(0.92, Math.max(0.42, pitch + dpitch));
+  updateCamera();
+  fit();
+  const rx = wx * cosYaw - wy * sinYaw, ry = wx * sinYaw + wy * cosYaw;
+  panX += view.w / 2 - (view.ox + rx * view.s);
+  panY += view.h / 2 - (view.oy + ry * view.s * pitch);
+  fit();
+}
+
+// ambient orbit: after 15s without input the city turns slowly on its own;
+// any interaction stops it
+let idleTimer = 0, ambientOn = false, ambientT = 0;
+function ambientStep(now) {
+  if (!ambientOn) return;
+  if (!document.hidden && !drag) {
+    if (ambientT) orbitBy(Math.min(50, now - ambientT) * 0.00006, 0);
+    ambientT = now;
+    updateResetBtn();
+    schedule();
+  } else ambientT = 0;
+  requestAnimationFrame(ambientStep);
+}
+function noteInteract() {
+  ambientOn = false;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    ambientOn = true;
+    ambientT = 0;
+    requestAnimationFrame(ambientStep);
+  }, 15000);
+}
+document.addEventListener('pointerdown', noteInteract);
+canvas.addEventListener('pointermove', noteInteract);
+canvas.addEventListener('wheel', noteInteract, { passive: true });
+
 // quarter turns pivot around whatever ground point is centered on screen
 function quarterTurn(dir) {
   updateCamera();
@@ -1636,6 +1738,7 @@ canvas.addEventListener('click', e => {
   if (suppressClick) { suppressClick = false; return; }
   if (!loaded) return;
   selected = pick(e);
+  selPopAt = performance.now();
   renderSel();
   schedule();
 });
@@ -1650,16 +1753,7 @@ if (fine) {
           panX += dx;
           panY += dy;
         } else {
-          // orbit about the ground point at the screen center, not the grid
-          // center, so a zoomed-in view stays on what it was looking at
-          const [wx, wy] = groundAt(view.w / 2, view.h / 2);
-          yaw += dx * 0.007;
-          pitch = Math.min(0.92, Math.max(0.28, pitch + dy * 0.004));
-          updateCamera();
-          fit();
-          const rx = wx * cosYaw - wy * sinYaw, ry = wx * sinYaw + wy * cosYaw;
-          panX += view.w / 2 - (view.ox + rx * view.s);
-          panY += view.h / 2 - (view.oy + ry * view.s * pitch);
+          orbitBy(dx * 0.007, dy * 0.004);
         }
         drag.x = e.clientX; drag.y = e.clientY;
         hoverId = -1;
@@ -1731,8 +1825,14 @@ function configurePage() {
 }
 
 configurePage();
+// open on a pulled-back three-quarter angle and glide into the home framing
+yaw = YAW0 - 0.55;
+pitch = 0.62;
+zoom = 0.84;
 fit();
 render();
+flyTo({ yaw: YAW0, pitch: PITCH0, zoom: 1 }, 1400);
+noteInteract(); // arms the ambient-orbit idle timer
 if (NET.ready) {
   load();
   connect({ prompt: false }).catch(() => {});
