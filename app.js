@@ -438,6 +438,7 @@ function render() {
     }
     let top;
     if (demo) top = MINE_TOP;
+    else if (districtView) top = DISTRICTS[districtOf(x, y)].color;
     else if (owned[id] && builds[id]) top = builds[id].color; // owner-painted
     else if (owned[id]) top = mine[id] ? MINE_TOP : CLAIMED_TOP;
     else if (DISTRICTS_ON) top = DISTRICTS[districtOf(x, y)].color;
@@ -1587,6 +1588,16 @@ function pick(e) {
 
 const resetBtn = document.getElementById('view-reset');
 const TAU = 2 * Math.PI;
+
+// district view: tint every rooftop by its district so the five zones read
+// even with the whole city built up
+let districtView = false;
+const districtsBtn = document.getElementById('districts-toggle');
+districtsBtn.addEventListener('click', () => {
+  districtView = !districtView;
+  districtsBtn.classList.toggle('on', districtView);
+  schedule();
+});
 
 function viewMoved() {
   const ny = ((yaw % TAU) + TAU) % TAU;

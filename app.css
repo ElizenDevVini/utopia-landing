@@ -73,6 +73,12 @@
 
 .map-controls button:hover { color: #ffffff; border-color: rgba(255, 255, 255, 0.6); }
 
+.map-controls button.on {
+  color: #0c2340;
+  background: #e9f2fb;
+  border-color: #e9f2fb;
+}
+
 .legend {
   color: var(--muted);
   font-size: 0.78rem;
